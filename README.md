@@ -34,14 +34,19 @@ MQTT credentials, firmware dumps, or personal backups.
   install_webui.ps1        Windows installer for rooted hubs with SSH
   install_webui.py         Linux/macOS Python installer for rooted hubs
   restore_backup.ps1       Restores the installer's hub-side backup
+  android-app/             Android companion app source
   payload/
     bin/                   MIPS binaries shipped to the hub
-    scripts/               Init, recovery, Dropbear wrappers, cloud suppression
-    mqtt/                  MQTT bridge Lua plugin
+    modules/               Kernel modules (ath_i2s, etc.)
+    scripts/               Init, recovery, and Dropbear wrappers
     source/                C sources for the native helper binaries
   tools/
     ir_database_smoke_test.mjs
+    chrome_ui_smoke.mjs
+    unbrick_recovery/      Hardware SPI flash / UART unbrick tooling
   build/
+    compile_all.sh
+    build_btstack.sh
     build_harmony_tools_kali.sh
   docs/
     AI_HANDOFF.md
@@ -67,8 +72,7 @@ starts with `harmony_owner_`:
 ~/.ssh/harmony_owner_*
 ```
 
-The installer also needs the real numeric Harmony Hub ID for local HBus
-commands. If you rooted the hub with `harmony-hub-root`, this is read
+The installer also needs the real numeric Harmony Hub ID. If you rooted the hub with `harmony-hub-root`, this is read
 automatically from the handoff file under `.harmony-hub`. If the handoff file is
 missing, pass the exact value printed by the root tool as `hub_id=...`:
 
@@ -80,7 +84,7 @@ missing, pass the exact value printed by the root tool as `hub_id=...`:
 python3 install_webui.py --hub-host <hub-ip> --hub-id <numeric-id>
 ```
 
-Do not use a guessed Hub ID; IR, capture, MQTT, and dashboard HBus calls depend
+Do not use a guessed Hub ID; hub identification and configuration depend
 on the real value. The installer does not prompt for a Hub ID interactively,
 because guessed numeric values are accepted by the shell but fail against the
 hub.
@@ -125,22 +129,13 @@ The installer will prompt for missing values, create a backup on the hub, upload
 the runtime, start Dropbear if needed, start the web UI, and write MQTT config
 if provided.
 
-By default the installer enables the web UI's cloud blocker setting. That keeps
-Logitech cloudapi, PubNub, and package-manager background tasks from starting
-while local web, MQTT, Bluetooth, Wi-Fi recovery, and SSH control continue to
-work. Fresh installs reboot once at the end so the patched network-service
-startup is actually active before the handoff finishes. Owners can change it
-later from **System > Cloud blocker** and use **Save and reboot** to apply the
-new mode.
-
-To stage the setting without the install-time reboot:
+By default the installer patches the hub startup scripts to block Logitech
+cloudapi, PubNub, and package-manager background tasks while local web, MQTT,
+Bluetooth, Wi-Fi recovery, and SSH control continue to work. A reboot can be
+issued after install to ensure all network startup patches are applied cleanly:
 
 ```powershell
-.\install_webui.ps1 -HubHost <hub-ip> -NoApplyCloudRestart
-```
-
-```bash
-python3 install_webui.py --hub-host <hub-ip> --no-apply-cloud-restart
+ssh -i "$env:USERPROFILE\.ssh\<root-key-file>" root@<hub-ip> "reboot"
 ```
 
 Open the UI afterward:
@@ -184,13 +179,13 @@ Invoke-WebRequest -Uri "http://<hub-ip>:8080/" -UseBasicParsing
 Process and checksum check:
 
 ```powershell
-ssh -i "$env:USERPROFILE\.ssh\<root-key-file>" root@<hub-ip> "ps | grep '[c]odex_webui'; ps | grep '[c]odex_bthid_keyboard'; ps | grep '[d]ropbear'; md5sum /data/codex/bin/codex_webui"
+ssh -i "$env:USERPROFILE\.ssh\<root-key-file>" root@<hub-ip> "ps | grep '[c]odex_webui'; ps | grep '[c]odex_daemon'; ps | grep '[c]odex_btstack'; ps | grep '[d]ropbear'; md5sum /data/codex/bin/codex_webui"
 ```
 
 Logs:
 
 ```powershell
-ssh -i "$env:USERPROFILE\.ssh\<root-key-file>" root@<hub-ip> "tail -80 /cache/codex-init.log; tail -80 /data/codex/ir-events.log 2>/dev/null"
+ssh -i "$env:USERPROFILE\.ssh\<root-key-file>" root@<hub-ip> "tail -80 /tmp/codex-init.log; tail -80 /tmp/ir-events.log 2>/dev/null"
 ```
 
 IR database parser smoke test:

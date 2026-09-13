@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
         unsigned int srv = htonl(server_ip);
 
         if (n < 244) continue;
-        if (ntohl(*(unsigned int *)&req[236]) != DHCP_MAGIC) continue;
+        { unsigned int magic; memcpy(&magic, &req[236], 4); if (ntohl(magic) != DHCP_MAGIC) continue; }
         opts = &req[240];
         msgopt = opt_find(opts, (int)n - 240, 53);
         if (!msgopt || msgopt[1] < 1) continue;
@@ -124,7 +124,7 @@ int main(int argc, char **argv) {
         yiaddr = pick_ip(start_ip, end_ip, &req[28]);
         u32_to_ip(yiaddr, &a);
         memcpy(&resp[16], &a.s_addr, 4);
-        *(unsigned int *)&resp[236] = htonl(DHCP_MAGIC);
+        { unsigned int magic_out = htonl(DHCP_MAGIC); memcpy(&resp[236], &magic_out, 4); }
         p = &resp[240];
         {
             unsigned char mt = msgtype == 1 ? 2 : 5;

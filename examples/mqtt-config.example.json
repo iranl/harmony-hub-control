@@ -12,5 +12,6 @@
     "port": 1883,
     "username": "",
     "password": ""
-  }
+  },
+  "ntpServer": "pool.ntp.org"
 }

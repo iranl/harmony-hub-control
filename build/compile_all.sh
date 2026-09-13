@@ -1,0 +1,117 @@
+#!/bin/sh
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+
+SRC="$REPO_ROOT/payload/source"
+BIN="$REPO_ROOT/payload/bin"
+OUT="$SCRIPT_DIR/output"
+TOOLS="$SCRIPT_DIR/toolchains/mips32--uclibc--stable"
+
+export PATH="$TOOLS/bin:$PATH"
+CC="mips-buildroot-linux-uclibc-gcc"
+STRIP="mips-buildroot-linux-uclibc-strip"
+
+mkdir -p "$BIN" "$OUT"
+
+cd "$REPO_ROOT"
+CFLAGS="-Os -static -s -DNDEBUG"
+TARGET="${1:-all}"
+
+build_dhcpd() {
+    echo "[-] Building codex_dhcpd..."
+    "$CC" $CFLAGS -o "$BIN/codex_dhcpd" payload/source/codex_dhcpd.c
+}
+
+build_portal() {
+    echo "[-] Building codex_portal..."
+    "$CC" $CFLAGS -o "$BIN/codex_portal" payload/source/codex_portal.c
+}
+
+build_webui() {
+    echo "[-] Building codex_webui..."
+    "$CC" $CFLAGS -Ipayload/source -o "$BIN/codex_webui" \
+        payload/source/codex_webui.c \
+        payload/source/webui_utils.c \
+        payload/source/webui_ir.c \
+        payload/source/webui_activity.c \
+        payload/source/webui_bt.c \
+        payload/source/webui_update.c \
+        payload/source/webui_config.c \
+        payload/source/resource_cache.c \
+        payload/source/cJSON.c \
+        payload/source/hw_action.c \
+        payload/source/ir_encoder.c \
+        payload/source/ir_i2s.c -lm
+}
+
+build_sntp() {
+    echo "[-] Building codex_sntp..."
+    "$CC" $CFLAGS -Ipayload/source -o "$BIN/codex_sntp" payload/source/codex_sntp_main.c payload/source/codex_ntp.c
+}
+
+build_daemon() {
+    echo "[-] Building codex_daemon..."
+    "$CC" $CFLAGS -Ipayload/source -o "$BIN/codex_daemon" payload/source/codex_daemon.c payload/source/resource_cache.c payload/source/cJSON.c payload/source/ir_encoder.c payload/source/ir_i2s.c payload/source/hw_action.c payload/source/orchestrator.c payload/source/ws_server.c payload/source/http_server.c payload/source/mqtt_client.c payload/source/codex_ntp.c -lm
+}
+
+build_register_ehci() {
+    echo "[-] Building register_ehci..."
+    "$CC" $CFLAGS -o "$BIN/register_ehci" payload/source/register_ehci.c
+}
+
+build_btstack() {
+    echo "[-] Building codex_btstack..."
+    "$SCRIPT_DIR/build_btstack.sh"
+}
+
+case "$TARGET" in
+    daemon)
+        build_daemon
+        ;;
+    webui)
+        build_webui
+        ;;
+    sntp)
+        build_sntp
+        ;;
+    portal)
+        build_portal
+        ;;
+    dhcpd)
+        build_dhcpd
+        ;;
+    btstack)
+        build_btstack
+        ;;
+    register_ehci)
+        build_register_ehci
+        ;;
+    all)
+        build_dhcpd
+        build_portal
+        build_webui
+        build_sntp
+        build_daemon
+        build_register_ehci
+        build_btstack
+        ;;
+    *)
+        echo "Unknown target: $TARGET"
+        echo "Usage: $0 [all|daemon|webui|sntp|portal|dhcpd|btstack|register_ehci]"
+        exit 1
+        ;;
+esac
+
+echo "Copying binaries to build/output..."
+cp -f "$BIN"/codex_* "$BIN"/register_ehci "$OUT"/ 2>/dev/null || true
+
+echo "Updating MANIFEST.txt and FILES..."
+cd "$BIN"
+file codex_btstack codex_dhcpd codex_portal codex_webui codex_daemon codex_sntp dropbearmulti register_ehci > FILES 2>/dev/null || true
+ls -l codex_btstack codex_dhcpd codex_portal codex_webui codex_daemon codex_sntp dropbearmulti register_ehci > MANIFEST.txt 2>/dev/null || true
+md5sum codex_btstack codex_dhcpd codex_portal codex_webui codex_daemon codex_sntp dropbearmulti register_ehci >> MANIFEST.txt 2>/dev/null || true
+
+echo "=== Build finished successfully! ==="
+ls -lh "$BIN"/codex_* "$BIN"/register_ehci

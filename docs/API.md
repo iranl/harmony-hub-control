@@ -132,8 +132,8 @@ Invoke-RestMethod "http://<hub-ip>:8080/api/bt-text" -Method Post -Body @{
 }
 ```
 
-The installer starts `/data/codex/bin/codex_bthid_keyboard` automatically and
-creates `/cache/bin/bthid_keyboard` as a friendly symlink. The runtime reads
+The unified Bluetooth daemon `/data/codex/bin/codex_btstack` runs automatically and
+handles Classic Bluetooth HID keyboard emulation and BLE remote connectivity. The runtime reads
 `/tmp/bthid_input`, sends exact press/release reports for ASCII text, and uses
 the paired target saved by the Bluetooth controls.
 
@@ -162,12 +162,15 @@ Invoke-RestMethod "http://<hub-ip>:8080/api/bt-call" -Method Post -Body @{
 
 ```text
 GET /export/bundle
+GET /export/activities
 GET /export/devices
 GET /export/functions
 GET /export/protocols
 GET /export/mqtt
 GET /export/wifi
 GET /export/cloud
+GET /export/bluetooth
+GET /export/remote-mapping
 ```
 
 Exports are for backups and debugging. Do not share files containing local
@@ -204,3 +207,20 @@ works without a token. For a private GitHub repo or fork, paste a GitHub token
 into the System page update field. It is used only by the browser to read GitHub
 and is not sent to or stored on the hub. Change the raw base URL only when using
 a public mirror.
+
+## Physical Bluetooth Remote
+
+The unified daemon `/data/codex/bin/codex_btstack` connects to a paired BLE remote
+(e.g. Homatics B25 / RTL8762) over BLE GATT/HOGP, auto-encrypts
+the link using BTstack SM/LE-SC pairing, subscribes to HID report CCCDs,
+and decodes button presses from incoming notifications.
+It maps buttons dynamically based on the hub's active activity context (or Off mode `-1`)
+using `/data/codex/bt_remote_map.json`, and dispatches IR, Bluetooth, or MQTT commands directly via hardware drivers (`hw_action.c`).
+
+Endpoints:
+- `GET /api/remote-mapping`: Returns daemon status, connected status, and the JSON mapping configuration.
+- `POST /api/remote-mapping-save`: Saves mapping configuration JSON directly to `/data/codex/bt_remote_map.json`.
+- `POST /api/remote-scan`: Initiates a non-blocking background BLE scan via `codex_btstack`.
+- `GET /api/remote-scan-result`: Polls discovered Bluetooth devices and scan status.
+- `POST /api/remote-pair`: Initiates pairing and encryption negotiation for the specified `addr`.
+- `GET /api/remote-pair-status`: Polls pairing state and countdown timer.

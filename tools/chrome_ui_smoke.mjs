@@ -11,7 +11,8 @@ function arg(name, fallback = '') {
 }
 
 const port = Number(arg('port', '9230')) || 9230;
-const hub = arg('hub', 'http://192.168.50.139:8080/');
+const defaultHub = process.env.HUB_IP ? `http://${process.env.HUB_IP}:8080/` : 'http://127.0.0.1:8080/';
+const hub = arg('hub', process.env.HUB_URL || defaultHub);
 const outDir = arg('out', path.join('diagnostics', 'chrome-ui-smoke'));
 
 function wait(ms) {

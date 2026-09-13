@@ -29,10 +29,9 @@ STRIP=mips-buildroot-linux-uclibc-strip
 
 "$CC" -Os -static -s -o "$OUT/codex_dhcpd" "$SRC/codex_dhcpd.c"
 "$CC" -Os -static -s -o "$OUT/codex_portal" "$SRC/codex_portal.c"
-"$CC" -Os -static -s -o "$OUT/codex_hbus" "$SRC/codex_hbus.c"
-"$CC" -Os -static -s -o "$OUT/codex_hal_ltcp" "$SRC/codex_hal_ltcp.c"
-"$CC" -Os -static -s -o "$OUT/codex_bthid_keyboard" "$SRC/codex_bthid_keyboard.c"
-"$CC" -Os -static -s -o "$OUT/codex_webui" "$SRC/codex_webui.c"
+"$CC" -Os -static -s -I"$SRC" -o "$OUT/codex_sntp" "$SRC/codex_sntp_main.c" "$SRC/codex_ntp.c"
+"$CC" -Os -static -s -I"$SRC" -o "$OUT/codex_webui" "$SRC/codex_webui.c" "$SRC/cJSON.c" "$SRC/hw_action.c" "$SRC/ir_encoder.c" "$SRC/ir_i2s.c" -lm
+"$CC" -Os -static -s -I"$SRC" -o "$OUT/codex_daemon" "$SRC/codex_daemon.c" "$SRC/cJSON.c" "$SRC/ir_encoder.c" "$SRC/ir_i2s.c" "$SRC/hw_action.c" "$SRC/orchestrator.c" "$SRC/ws_server.c" "$SRC/http_server.c" "$SRC/mqtt_client.c" "$SRC/codex_ntp.c" -lm
 
 DROPBEAR_VERSION=2025.89
 DROPBEAR_TARBALL="$BUILD/dropbear-$DROPBEAR_VERSION.tar.bz2"
@@ -69,7 +68,7 @@ cp dropbearmulti "$OUT/dropbearmulti"
 cd "$OUT"
 ln -sf dropbearmulti dropbear
 ln -sf dropbearmulti dropbearkey
-md5sum codex_dhcpd codex_portal codex_hbus codex_hal_ltcp codex_bthid_keyboard codex_webui dropbearmulti > MD5SUMS
-file codex_dhcpd codex_portal codex_hbus codex_hal_ltcp codex_bthid_keyboard codex_webui dropbearmulti > FILES
-ls -l codex_dhcpd codex_portal codex_hbus codex_hal_ltcp codex_bthid_keyboard codex_webui dropbearmulti > MANIFEST.txt
+md5sum codex_dhcpd codex_portal codex_sntp codex_webui codex_daemon dropbearmulti > MD5SUMS
+file codex_dhcpd codex_portal codex_sntp codex_webui codex_daemon dropbearmulti > FILES
+ls -l codex_dhcpd codex_portal codex_sntp codex_webui codex_daemon dropbearmulti > MANIFEST.txt
 cat MD5SUMS >> MANIFEST.txt

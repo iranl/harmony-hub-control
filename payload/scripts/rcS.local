@@ -38,7 +38,6 @@ else
 	load_modules /etc/modules.wlan
 	/sbin/wlanconfig ath0 create wlandev wifi0 wlanmode sta
 	/usr/sbin/wpa_supplicant -s -iath0 -c /etc/wpa_supplicant.conf &
-	/usr/bin/netmonitor &
 fi
 
 # memory test
@@ -69,9 +68,13 @@ if [ -e /etc/memtester ]; then
 	while true; do sleep 60; done
 fi
 
-if [ -x /data/codex/init.sh ]; then
-	/data/codex/init.sh &
-fi
+# Prevent stock Logitech luaworks from executing (frees ~12MB RAM)
+chmod -x /opt/luaworks/luaworks 2>/dev/null || true
+
+# Disable hardware watchdog completely (prevents 60-second reboots when luaworks is dead)
+touch /etc/nowatchdog 2>/dev/null || true
+killall -9 watchdog 2>/dev/null || true
+
 
 # here be dragons ..
 # as Pimento has limited RAM we force the kernel to always overcommit memory
@@ -102,3 +105,9 @@ cat /sys/class/net/ath0/address | sed 's/\([0-9a-f][0-9a-f]\):\([0-9a-f][0-9a-f]
 # load bluetooth pskeys
 /usr/sbin/bccmd -t bcsp psload -r /tmp/pskeys.psr
 /usr/sbin/hciattach ttyS0 bcsp
+/usr/sbin/hciconfig hci0 up
+/usr/sbin/hciconfig hci0 sspmode 1
+
+if [ -x /data/codex/init.sh ]; then
+	/data/codex/init.sh &
+fi

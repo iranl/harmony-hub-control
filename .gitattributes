@@ -14,3 +14,7 @@ payload/bin/MANIFEST.txt text eol=lf
 
 payload/bin/codex_* binary
 payload/bin/dropbearmulti binary
+payload/bin/register_ehci binary
+payload/modules/*.ko binary
+tools/unbrick_recovery/** binary
+*.cmd text eol=crlf

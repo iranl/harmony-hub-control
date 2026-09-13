@@ -160,6 +160,9 @@ class Installer:
     def __init__(self, args: argparse.Namespace) -> None:
         self.args = args
         self.key_path = Path(args.key_path).expanduser().resolve()
+        self.keep_existing_mqtt = False
+        self._connected = False
+
 
     def ssh_base_args(self) -> list[str]:
         return [
@@ -211,6 +214,18 @@ class Installer:
         if not local_path.is_file():
             raise RuntimeError(f"missing local file: {local_path}")
         data = local_path.read_bytes()
+        l_md5 = hashlib.md5(data).hexdigest()
+
+        # Check if remote file already matches to avoid flash wear
+        check_cmd = f"test -f {remote_quote(remote_path)} && md5sum {remote_quote(remote_path)} 2>/dev/null || true"
+        remote_chk = self.run_remote(check_cmd, timeout=10, quiet=True).strip()
+        if remote_chk:
+            r_md5 = remote_chk.split()[0]
+            if r_md5 == l_md5:
+                self.run_remote(f"chmod {mode} {remote_quote(remote_path)}", timeout=5, quiet=True)
+                info(f"{remote_path} up-to-date (md5={l_md5[:8]}...), skipping flash write")
+                return
+
         remote_dir = split_remote_dir(remote_path)
         tmp = f"{remote_path}.tmp-handoff-{os.getpid()}-{int(time.time())}"
         command = (
@@ -221,10 +236,21 @@ class Installer:
         )
         timeout = max(90, 45 + int(len(data) / 12000))
         self.run_remote(command, data, timeout=timeout, quiet=True)
-        info(f"{remote_path} bytes={len(data)} md5={local_md5(local_path)}")
+        info(f"{remote_path} written (bytes={len(data)} md5={l_md5})")
 
     def upload_text(self, text: str, remote_path: str, mode: str) -> None:
         data = text.encode("utf-8")
+        l_md5 = hashlib.md5(data).hexdigest()
+
+        check_cmd = f"test -f {remote_quote(remote_path)} && md5sum {remote_quote(remote_path)} 2>/dev/null || true"
+        remote_chk = self.run_remote(check_cmd, timeout=10, quiet=True).strip()
+        if remote_chk:
+            r_md5 = remote_chk.split()[0]
+            if r_md5 == l_md5:
+                self.run_remote(f"chmod {mode} {remote_quote(remote_path)}", timeout=5, quiet=True)
+                info(f"{remote_path} up-to-date, skipping flash write")
+                return
+
         remote_dir = split_remote_dir(remote_path)
         tmp = f"{remote_path}.tmp-handoff-{os.getpid()}-{int(time.time())}"
         command = (
@@ -235,9 +261,9 @@ class Installer:
         )
         self.run_remote(command, data, timeout=90, quiet=True)
         if any(token in remote_path.lower() for token in ("pass", "authorized_keys", "config.json")):
-            info(f"{remote_path} bytes={len(data)} md5=<hidden>")
+            info(f"{remote_path} written (bytes={len(data)} md5=<hidden>)")
         else:
-            info(f"{remote_path} bytes={len(data)} md5={hashlib.md5(data).hexdigest()}")
+            info(f"{remote_path} written (bytes={len(data)} md5={l_md5})")
 
     def build_mqtt_config(self) -> str:
         broker = self.args.mqtt_broker or ""
@@ -260,10 +286,32 @@ class Installer:
         }
         return json.dumps(cfg, separators=(",", ":")) + "\n"
 
-    def run(self) -> None:
-        step("Checking SSH")
+    def check_connection(self) -> None:
+        if self._connected:
+            return
+        step("Checking connection")
+        if not tcp_open(self.args.hub_host, self.args.port, timeout=3.0):
+            raise RuntimeError(f"Cannot connect to {self.args.hub_host} on port {self.args.port}: port unreachable")
         identity = self.run_remote("id; uname -a", timeout=30)
         print(identity.strip())
+        self._connected = True
+
+    def has_existing_mqtt_config(self) -> bool:
+        res = self.run_remote("test -s /data/codexmqtt/config.json && echo 1 || echo 0", timeout=15, quiet=True).strip()
+        return res == "1"
+
+    def get_existing_mqtt_broker(self) -> str:
+        try:
+            raw = self.run_remote("cat /data/codexmqtt/config.json 2>/dev/null || true", timeout=15, quiet=True).strip()
+            if raw:
+                data = json.loads(raw)
+                return str(data.get("broker", {}).get("host", ""))
+        except Exception:
+            pass
+        return ""
+
+    def run(self) -> None:
+        self.check_connection()
 
         hub_id = self.args.hub_id or ""
         if not hub_id:
@@ -285,28 +333,134 @@ class Installer:
             )
         info(f"using hub id {hub_id}")
 
-        step("Creating remote backup")
-        backup_cmd = r"""
-STAMP=$(date +%Y%m%d-%H%M%S)
-B=/data/codex-backups/webui-handoff-$STAMP
-mkdir -p "$B"
-for f in /etc/init.d/rcS.local /opt/luaworks/tasks/connectserver/netservicestarter.lua /usr/sbin/dropbear /usr/sbin/dropbearkey /data/codex/hub_id /data/codex/cloud_blocker.conf /data/codexmqtt/config.json; do
-  if [ -e "$f" ]; then
-    n=$(echo "$f" | sed 's#/#_#g')
-    cp -p "$f" "$B/$n"
-  fi
-done
-echo "$B"
-"""
-        backup_dir = self.run_remote(backup_cmd, timeout=30).strip()
-        info(f"backup={backup_dir}")
+        step("Streaming remote backup to local host")
+        backup_dir = ROOT / "backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        backup_tar = backup_dir / f"hub_backup_{timestamp}.tar"
+        self.backup_tar = backup_tar
+
+        import io
+        import tarfile
+
+        candidate_paths = [
+            # Boot & runtime scripts
+            "/etc/init.d/rcS.local",
+            "/etc/init.d/rcS",
+            "/data/codex/init.sh",
+            "/data/codex/recovery_ap.sh",
+            "/usr/sbin/dropbear",
+            "/usr/sbin/dropbearkey",
+
+            # Active binaries
+            "/data/codex/bin/codex_webui",
+            "/data/codex/bin/codex_daemon",
+            "/data/codex/bin/codex_btstack",
+            "/data/codex/bin/codex_portal",
+            "/data/codex/bin/codex_dhcpd",
+            "/data/codex/bin/codex_sntp",
+            "/data/codex/bin/dropbearmulti",
+            "/data/codex/bin/register_ehci",
+            "/mnt/data/usb_eth/register_ehci",
+            "/mnt/data/usb_eth/start_usb_eth.sh",
+            "/mnt/data/usb_eth/stop_usb_eth.sh",
+            "/data/codex/usb_eth/start_usb_eth.sh",
+            "/data/codex/usb_eth/stop_usb_eth.sh",
+
+            # Core system & network config
+            "/data/codex/hub_id",
+            "/etc/tdeenable",
+            "/etc/nowatchdog",
+            "/etc/version",
+            "/etc/wpa_supplicant.conf",
+            "/home/root/.ssh/authorized_keys",
+            "/etc/dropbear/authorized_keys",
+            "/etc/dropbear/dropbear_rsa_host_key",
+            "/etc/dropbear/dropbear_dss_host_key",
+            "/etc/dropbear/dropbear_ecdsa_host_key",
+
+            # Codex configs & state
+            "/data/codexmqtt/config.json",
+            "/data/codex/bt_remote_map.json",
+            "/data/codex/bt_remote_mqtt",
+            "/data/codex/bt_remote_target",
+            "/data/codex/bt-devices.json",
+            "/data/codex/bthid_target",
+            "/data/codex/webui_auth.conf",
+            "/data/codex/debug_logging.conf",
+            "/data/codex/current_activity",
+
+            # Harmony resources & IR database
+            "/data/resources/DeviceList.json",
+            "/data/resources/ActivityList.json",
+            "/data/resources/FunctionList.json",
+            "/data/resources/ProtocolList.json",
+        ]
+
+        dynamic_cmd = "find /data/resources /data/codex /data/codexmqtt -maxdepth 2 -type f \\( -name '*.json' -o -name '*.conf' \\) 2>/dev/null || true"
+        discovered = [p.strip() for p in self.run_remote(dynamic_cmd, timeout=15, quiet=True).splitlines() if p.strip()]
+        all_candidates = list(dict.fromkeys(candidate_paths + discovered))
+
+        check_script = "for f in " + " ".join(remote_quote(f) for f in all_candidates) + "; do test -f \"$f\" && echo \"$f\"; done"
+        existing_files = [p.strip() for p in self.run_remote(check_script, timeout=30, quiet=True).splitlines() if p.strip()]
+        info(f"found {len(existing_files)} files on hub to backup (binaries, scripts, and configuration)")
+
+        tar_success = False
+        if existing_files:
+            tar_remote = "tar -cf - " + " ".join(remote_quote(f) for f in existing_files) + " 2>/dev/null"
+            proc = subprocess.run(
+                self.ssh_base_args() + [tar_remote],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=90,
+                check=False,
+            )
+            if proc.returncode == 0 and len(proc.stdout) >= 1024:
+                backup_tar.write_bytes(proc.stdout)
+                tar_success = True
+
+        if not tar_success:
+            with tarfile.open(backup_tar, "w") as tar:
+                for rpath in existing_files:
+                    cmd = f"test -f {remote_quote(rpath)} && cat {remote_quote(rpath)} || true"
+                    proc = subprocess.run(
+                        self.ssh_base_args() + [cmd],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        timeout=30,
+                        check=False,
+                    )
+                    if proc.stdout:
+                        ti = tarfile.TarInfo(name=rpath.lstrip("/"))
+                        ti.size = len(proc.stdout)
+                        ti.mtime = int(time.time())
+                        ti.mode = 0o644
+                        tar.addfile(ti, io.BytesIO(proc.stdout))
+
+        info(f"backup saved locally: {backup_tar} ({backup_tar.stat().st_size} bytes, {len(existing_files)} files)")
+        # Clean up legacy flash backups and unused test artifacts on hub
+        self.run_remote(
+            "rm -rf /data/codex-backups /data/codex/bin/*.tmp-handoff* /data/*.tmp-handoff* "
+            "/cache/*.log /cache/bin /data/codex/cloud_blocker.conf /data/codex/bt_backend.conf /opt/luaworks/tasks/connectserver/netservicestarter.lua /data/codex/bin/pair_b25.sh /data/codex/bin/do_pair.sh "
+            "/data/codex/bin/test_ble_diag /data/codex/bin/test_smp /data/codex/bin/test_hci_sniff "
+            "/data/codex/bin/codex_ir_send 2>/dev/null || true",
+            timeout=15,
+            quiet=True,
+        )
 
         step("Uploading binaries")
+        if (PAYLOAD / "bin" / "codex_daemon").is_file():
+            self.upload_bytes(PAYLOAD / "bin" / "codex_daemon", "/data/codex/bin/codex_daemon", "755")
         self.upload_bytes(PAYLOAD / "bin" / "dropbearmulti", "/data/codex/bin/dropbearmulti", "755")
         self.upload_bytes(PAYLOAD / "bin" / "codex_dhcpd", "/data/codex/bin/codex_dhcpd", "755")
-        self.upload_bytes(PAYLOAD / "bin" / "codex_hbus", "/data/codex/bin/codex_hbus", "755")
-        self.upload_bytes(PAYLOAD / "bin" / "codex_hal_ltcp", "/data/codex/bin/codex_hal_ltcp", "755")
-        self.upload_bytes(PAYLOAD / "bin" / "codex_bthid_keyboard", "/data/codex/bin/codex_bthid_keyboard", "755")
+        if (PAYLOAD / "bin" / "codex_btstack").is_file():
+            self.upload_bytes(PAYLOAD / "bin" / "codex_btstack", "/data/codex/bin/codex_btstack", "755")
+        if (PAYLOAD / "bin" / "codex_sntp").is_file():
+            self.upload_bytes(PAYLOAD / "bin" / "codex_sntp", "/data/codex/bin/codex_sntp", "755")
+
+        if (PAYLOAD / "bin" / "register_ehci").is_file():
+            self.upload_bytes(PAYLOAD / "bin" / "register_ehci", "/data/codex/bin/register_ehci", "755")
+
         self.upload_bytes(PAYLOAD / "bin" / "codex_portal", "/data/codex/bin/codex_portal", "755")
         self.upload_bytes(PAYLOAD / "bin" / "codex_webui", "/data/codex/bin/codex_webui", "755")
         self.upload_bytes(PAYLOAD / "scripts" / "dropbear", "/usr/sbin/dropbear", "755")
@@ -314,49 +468,69 @@ echo "$B"
 
         step("Uploading runtime files")
         self.upload_bytes(PAYLOAD / "scripts" / "init.sh", "/data/codex/init.sh", "755")
+        self.upload_bytes(PAYLOAD / "scripts" / "bt_reconnect.sh", "/data/codex/bt_reconnect.sh", "755")
         self.upload_bytes(PAYLOAD / "scripts" / "recovery_ap.sh", "/data/codex/recovery_ap.sh", "755")
         self.upload_bytes(PAYLOAD / "scripts" / "rcS.local", "/etc/init.d/rcS.local", "755")
-        if not self.args.skip_cloud_suppression:
-            self.upload_bytes(
-                PAYLOAD / "scripts" / "netservicestarter.lua",
-                "/opt/luaworks/tasks/connectserver/netservicestarter.lua",
-                "644",
-            )
-        else:
-            info("skipped netservicestarter.lua cloud-suppression patch")
-        self.upload_bytes(PAYLOAD / "mqtt" / "codexmqtt.lua", "/pkg/codexmqtt/codexmqtt.lua", "644")
+        if (PAYLOAD / "scripts" / "start_usb_eth.sh").is_file():
+            self.upload_bytes(PAYLOAD / "scripts" / "start_usb_eth.sh", "/mnt/data/usb_eth/start_usb_eth.sh", "755")
+        if (PAYLOAD / "scripts" / "stop_usb_eth.sh").is_file():
+            self.upload_bytes(PAYLOAD / "scripts" / "stop_usb_eth.sh", "/mnt/data/usb_eth/stop_usb_eth.sh", "755")
+
+        modules_dir = PAYLOAD / "modules"
+        if modules_dir.is_dir():
+            step("Uploading USB ethernet kernel modules")
+            for mod_path in sorted(modules_dir.glob("*.ko")):
+                self.upload_bytes(mod_path, f"/mnt/data/usb_eth/{mod_path.name}", "644")
 
         step("Uploading configuration")
         self.upload_text(f"{hub_id}\n", "/data/codex/hub_id", "644")
-        self.upload_text("0\n" if self.args.skip_cloud_suppression else "1\n", "/data/codex/cloud_blocker.conf", "644")
         self.upload_text("1\n", "/etc/tdeenable", "644")
-        self.upload_text('{"plugin":"codexmqtt"}\n', "/pkg/codexmqtt/manifest.json", "644")
-        self.upload_text(self.build_mqtt_config(), "/data/codexmqtt/config.json", "600")
+        self.upload_text("1\n", "/etc/nowatchdog", "644")
+        if self.keep_existing_mqtt:
+            info("keeping existing /data/codexmqtt/config.json")
+        else:
+            self.upload_text(self.build_mqtt_config(), "/data/codexmqtt/config.json", "600")
 
         step("Post-install permissions and startup")
         post = (
-            "mkdir -p /data/codex/bin /etc/dropbear /home/root/.ssh /data/codexmqtt /pkg/codexmqtt; "
+            "rm -rf /pkg/codexmqtt /data/codex/cloud_blocker.conf /data/codex/bt_backend.conf /opt/luaworks/tasks/connectserver/netservicestarter.lua /data/codex/bin/codex_hbus /data/codex/bin/codex_hal_ltcp /data/codex/bin/codex_bthid_keyboard /data/codex/bin/codex_bthid_remote /data/codex/bin/switch_bt.sh /data/codex/switch_bt.sh 2>/dev/null || true; "
+            "mkdir -p /mnt/data/usb_eth /data/codex/bin /etc/dropbear /home/root/.ssh /data/codexmqtt; "
+            "ln -sf /data/codex/bin/register_ehci /mnt/data/usb_eth/register_ehci 2>/dev/null || true; "
+            "ln -sf /mnt/data/usb_eth /data/codex/usb_eth 2>/dev/null || true; "
+            "ln -sf /mnt/data/usb_eth/start_usb_eth.sh /data/codex/bin/start_usb_eth.sh 2>/dev/null || true; "
+            "ln -sf /mnt/data/usb_eth/stop_usb_eth.sh /data/codex/bin/stop_usb_eth.sh 2>/dev/null || true; "
+            "ln -sf /mnt/data/usb_eth/start_usb_eth.sh /usr/sbin/start_usb_eth.sh 2>/dev/null || true; "
+            "ln -sf /mnt/data/usb_eth/stop_usb_eth.sh /usr/sbin/stop_usb_eth.sh 2>/dev/null || true; "
+            "chmod 755 /mnt/data/usb_eth/*.sh /mnt/data/usb_eth/register_ehci /data/codex/bin/register_ehci 2>/dev/null || true; "
             "ln -sf dropbearmulti /data/codex/bin/dropbear; "
             "ln -sf dropbearmulti /data/codex/bin/dropbearkey; "
-            "chmod 755 /data/codex/bin/dropbearmulti /data/codex/bin/codex_dhcpd /data/codex/bin/codex_hbus "
-            "/data/codex/bin/codex_hal_ltcp /data/codex/bin/codex_bthid_keyboard /data/codex/bin/codex_portal "
-            "/data/codex/bin/codex_webui /data/codex/init.sh /data/codex/recovery_ap.sh /usr/sbin/dropbear "
-            "/usr/sbin/dropbearkey /etc/init.d/rcS.local; "
+            "chmod 755 /data/codex/bin/dropbearmulti /data/codex/bin/codex_dhcpd "
+            "/data/codex/bin/codex_btstack /data/codex/bin/codex_sntp "
+            "/data/codex/bin/codex_portal /data/codex/bin/codex_webui /data/codex/bin/codex_daemon /data/codex/init.sh "
+            "/data/codex/bt_reconnect.sh /data/codex/recovery_ap.sh /usr/sbin/dropbear "
+            "/usr/sbin/dropbearkey /etc/init.d/rcS.local 2>/dev/null || true; "
             "chmod 600 /data/codexmqtt/config.json 2>/dev/null || true; "
+            "chmod -x /usr/sbin/bluetoothd 2>/dev/null || true; "
             "/bin/busybox sync 2>/dev/null || true"
         )
         self.run_remote(post, timeout=60, quiet=True)
 
         start = (
-            "killall codex_webui 2>/dev/null || true; killall codex_bthid_keyboard 2>/dev/null || true; "
+            "killall -9 luaworks luadraws lua netmonitor codex_webui codex_daemon codex_btstack codex_bthid_remote codex_bthid_keyboard bluetoothd 2>/dev/null || true; "
+            "chmod -x /opt/luaworks/luaworks 2>/dev/null || true; "
+            "chmod -x /usr/sbin/bluetoothd 2>/dev/null || true; "
             "if ! ps | grep '[d]ropbear' >/dev/null 2>&1; then /usr/sbin/dropbear -R -p 22; fi; "
-            "mkdir -p /cache/bin; ln -sf /data/codex/bin/codex_bthid_keyboard /cache/bin/bthid_keyboard; "
-            "/data/codex/bin/codex_webui 8080 >> /cache/codex-init.log 2>&1 & "
-            "/data/codex/bin/codex_bthid_keyboard >> /cache/codex-init.log 2>&1 & "
+            "if [ -x /data/codex/bin/codex_webui ]; then "
+            "/data/codex/bin/codex_webui 8080 >> /tmp/codex-init.log 2>&1 & "
+            "fi; "
+            "if [ -x /data/codex/bin/codex_daemon ]; then "
+            "/data/codex/bin/codex_daemon 8089 >> /tmp/codex-init.log 2>&1 & "
+            "fi; "
+            "if [ -x /data/codex/bin/codex_btstack ]; then "
+            "/data/codex/bin/codex_btstack >> /tmp/codex-init.log 2>&1 & "
+            "fi; "
             "sleep 1; "
-            f"/data/codex/bin/codex_hbus {remote_quote(hub_id)} harmony.automation?discover "
-            f"{remote_quote('{\"gatewayType\":\"codexmqtt\"}')} >> /cache/codex-init.log 2>&1 || true; "
-            "ps | grep '[c]odex_webui' || true; ps | grep '[c]odex_bthid_keyboard' || true; ps | grep '[d]ropbear' || true"
+            "ps | grep '[c]odex_webui' || true; ps | grep '[c]odex_daemon' || true; ps | grep '[c]odex_btstack' || true; ps | grep '[d]ropbear' || true"
         )
         print(self.run_remote(start, timeout=90).strip())
 
@@ -364,12 +538,17 @@ echo "$B"
         expected = {
             "/data/codex/bin/dropbearmulti": local_md5(PAYLOAD / "bin" / "dropbearmulti"),
             "/data/codex/bin/codex_dhcpd": local_md5(PAYLOAD / "bin" / "codex_dhcpd"),
-            "/data/codex/bin/codex_hbus": local_md5(PAYLOAD / "bin" / "codex_hbus"),
-            "/data/codex/bin/codex_hal_ltcp": local_md5(PAYLOAD / "bin" / "codex_hal_ltcp"),
-            "/data/codex/bin/codex_bthid_keyboard": local_md5(PAYLOAD / "bin" / "codex_bthid_keyboard"),
             "/data/codex/bin/codex_portal": local_md5(PAYLOAD / "bin" / "codex_portal"),
             "/data/codex/bin/codex_webui": local_md5(PAYLOAD / "bin" / "codex_webui"),
         }
+        if (PAYLOAD / "bin" / "codex_btstack").is_file():
+            expected["/data/codex/bin/codex_btstack"] = local_md5(PAYLOAD / "bin" / "codex_btstack")
+        if (PAYLOAD / "bin" / "codex_sntp").is_file():
+            expected["/data/codex/bin/codex_sntp"] = local_md5(PAYLOAD / "bin" / "codex_sntp")
+        if (PAYLOAD / "bin" / "codex_daemon").is_file():
+            expected["/data/codex/bin/codex_daemon"] = local_md5(PAYLOAD / "bin" / "codex_daemon")
+        if (PAYLOAD / "bin" / "register_ehci").is_file():
+            expected["/data/codex/bin/register_ehci"] = local_md5(PAYLOAD / "bin" / "register_ehci")
         paths = " ".join(remote_quote(p) for p in expected)
         verify = self.run_remote(f"md5sum {paths}", timeout=45)
         print(verify.strip())
@@ -380,20 +559,10 @@ echo "$B"
                     f"checksum mismatch for {parts[1]}: expected {expected[parts[1]]} got {parts[0]}"
                 )
 
-        if not self.args.skip_cloud_suppression and not self.args.no_apply_cloud_restart:
-            step("Applying cloud blocker")
-            info("Rebooting the hub so Logitech cloud services restart in blocked mode.")
-            self.run_remote("(/bin/sleep 2; /sbin/reboot || reboot) >/dev/null 2>&1 & echo rebooting", timeout=30, quiet=True)
-            time.sleep(8)
-            wait_for_port(self.args.hub_host, self.args.port, 180, "SSH")
-            wait_for_port(self.args.hub_host, 8080, 180, "Web UI")
-
         step("Done")
         info(f"Web UI: http://{self.args.hub_host}:8080/")
         info("Web UI authentication: disabled")
-        info(f"Backup directory on hub: {backup_dir}")
-        if not self.args.skip_cloud_suppression:
-            info("Cloud blocker: enabled and applied")
+        info(f"Backup saved locally: {self.backup_tar}")
         info("If IR commands do not work, update /data/codex/hub_id with the correct hub id and restart codex_webui.")
 
 
@@ -414,8 +583,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--mqtt-discovery-prefix", default="homeassistant", help="Home Assistant MQTT discovery prefix")
     parser.add_argument("--mqtt-client-id", default="harmony-local-mqtt", help="MQTT client ID")
     parser.add_argument("--mqtt-disabled", action="store_true", help="Install with MQTT disabled")
-    parser.add_argument("--skip-cloud-suppression", action="store_true", help="Do not replace netservicestarter.lua")
-    parser.add_argument("--no-apply-cloud-restart", action="store_true", help="Do not reboot after enabling the Logitech cloud blocker")
     parser.add_argument("--no-prompt", action="store_true", help="Fail instead of asking for missing required values")
     return parser.parse_args(argv)
 
@@ -436,17 +603,28 @@ def main(argv: list[str]) -> int:
             raise RuntimeError(f"SSH key not found: {key_path}")
         args.key_path = str(key_path)
 
-        if not args.no_prompt and not args.mqtt_broker and not args.mqtt_disabled:
-            args.mqtt_broker = input("MQTT broker host/IP (blank to disable MQTT for now): ").strip()
-            if not args.mqtt_broker:
-                args.mqtt_disabled = True
-        if not args.no_prompt and args.mqtt_broker:
-            if not args.mqtt_user:
-                args.mqtt_user = input("MQTT username (blank if none): ").strip()
-            if not args.mqtt_password:
-                args.mqtt_password = getpass.getpass("MQTT password (blank if none): ")
+        installer = Installer(args)
+        installer.check_connection()
 
-        Installer(args).run()
+        if installer.has_existing_mqtt_config():
+            if not args.mqtt_broker:
+                installer.keep_existing_mqtt = True
+                info("keeping existing MQTT configuration on hub")
+            else:
+                info(f"updating MQTT broker configuration to {args.mqtt_broker}")
+
+        if not installer.keep_existing_mqtt:
+            if not args.no_prompt and not args.mqtt_broker and not args.mqtt_disabled:
+                args.mqtt_broker = input("MQTT broker host/IP (blank to disable MQTT for now): ").strip()
+                if not args.mqtt_broker:
+                    args.mqtt_disabled = True
+            if not args.no_prompt and args.mqtt_broker:
+                if not args.mqtt_user:
+                    args.mqtt_user = input("MQTT username (blank if none): ").strip()
+                if not args.mqtt_password:
+                    args.mqtt_password = getpass.getpass("MQTT password (blank if none): ")
+
+        installer.run()
         return 0
     except KeyboardInterrupt:
         fail("cancelled")

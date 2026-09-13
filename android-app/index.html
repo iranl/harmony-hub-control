@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0c0f14">
+  <title>Harmony Remote</title>
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <link rel="apple-touch-icon" href="./icon.png">
+  <link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+
+  <!-- Top App Header -->
+  <header class="app-header">
+    <div class="top-bar">
+      <div class="brand-group">
+        <div class="brand-icon">H</div>
+        <div class="brand-title">Harmony Hub</div>
+      </div>
+      <button type="button" class="hub-selector-btn" id="hubSelectorBtn" aria-label="Select Harmony Hub">
+        <span id="activeHubStatusDot" class="hub-status-dot"></span>
+        <span id="activeHubLabel">Select Hub</span>
+        <span style="font-size: 10px; opacity: 0.7;">▾</span>
+      </button>
+    </div>
+
+    <!-- Active Activity Banner -->
+    <div class="activity-banner" id="activityBanner">
+      <div class="banner-activities-scroll" id="bannerActivitiesList">
+        <!-- Dynamic activity buttons populated here -->
+      </div>
+      <button type="button" id="btnBannerPowerOff" class="btn btn-xs btn-danger" style="display: inline-flex; align-items: center; gap: 4px;">
+        Power Off
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+          <line x1="12" y1="2" x2="12" y2="12"></line>
+        </svg>
+      </button>
+
+      <!-- Sleek Activity Transition Progress (replaces buttons during transition) -->
+      <div class="banner-transition-card" id="bannerTransitionCard" style="display: none;">
+        <div class="banner-transition-info">
+          <div class="banner-transition-title" id="bannerTransitionTitle">
+            <span class="transition-pulse-dot"></span>
+            <span id="bannerTransitionName">Switching...</span>
+          </div>
+          <div class="banner-transition-desc" id="bannerTransitionDesc">Starting...</div>
+        </div>
+        <div class="banner-progress-bar-wrap">
+          <div class="banner-progress-bar" id="bannerTransitionProgress" style="width: 10%;"></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="app-content">
+
+    <!-- Activity Remote View -->
+    <section id="view-activity-remote" class="view-panel active">
+      <div id="activityRemoteContainer"></div>
+    </section>
+
+    <!-- Per-Device Remote View -->
+    <section id="view-device-remote" class="view-panel">
+      <div class="device-select-bar" style="margin-bottom: 12px; display: flex; gap: 8px; align-items: center;">
+        <select id="deviceRemoteSelect" class="form-control" style="flex: 1;"></select>
+      </div>
+      <div id="deviceRemoteContainer"></div>
+    </section>
+
+    <!-- Saved Hubs View -->
+    <section id="view-hubs" class="view-panel">
+      <div class="remote-toolbar" style="margin-bottom: 12px;">
+        <div>
+          <div class="remote-badge">Network Multi-Hub</div>
+          <h2 class="remote-title">Saved Hubs</h2>
+        </div>
+        <button type="button" class="btn btn-sm btn-primary" id="btnAddHub">+ Add Hub</button>
+      </div>
+      <div id="hubsList" class="card-list"></div>
+    </section>
+
+  </main>
+
+  <!-- Bottom Navigation Bar -->
+  <nav class="app-nav">
+    <button type="button" class="nav-item active" data-tab="activity-remote">
+      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="5" y="2" width="14" height="20" rx="3"></rect>
+        <circle cx="12" cy="7" r="1"></circle>
+        <circle cx="12" cy="12" r="2"></circle>
+        <path d="M10 17h4"></path>
+      </svg>
+      <span>Activity</span>
+    </button>
+
+    <button type="button" class="nav-item" data-tab="device-remote">
+      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="7" y="2" width="10" height="20" rx="2"></rect>
+        <line x1="10" y1="6" x2="14" y2="6"></line>
+        <line x1="10" y1="10" x2="14" y2="10"></line>
+        <line x1="10" y1="14" x2="14" y2="14"></line>
+        <circle cx="12" cy="18" r="1"></circle>
+      </svg>
+      <span>Device</span>
+    </button>
+
+    <button type="button" class="nav-item" data-tab="hubs">
+      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="2" y1="12" x2="22" y2="12"></line>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+      </svg>
+      <span>Hubs</span>
+    </button>
+  </nav>
+
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>

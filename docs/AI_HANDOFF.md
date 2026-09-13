@@ -19,13 +19,11 @@ already rooted Logitech Harmony Hub.
 
 ## Main Files
 
-- `payload/source/codex_webui.c`: single-binary web server and front-end assets.
-- `payload/mqtt/codexmqtt.lua`: Home Assistant MQTT bridge.
+- `payload/source/codex_webui.c`: single-binary web server and front-end assets (port 8080).
+- `payload/source/codex_daemon.c`: core orchestrator, MQTT client, WebSocket, and HTTP daemon (port 8089).
+- `payload/source/codex_btstack/`: BTstack BLE remote daemon and HID keyboard/consumer input engine.
 - `payload/scripts/init.sh`: hub boot startup for local services.
 - `payload/scripts/recovery_ap.sh`: reset-button recovery AP flow.
-- `payload/scripts/netservicestarter.lua`: local service starter that reads
-  `/data/codex/cloud_blocker.conf` before starting or blocking Logitech cloud
-  tasks.
 - `install_webui.ps1`: Windows SSH uploader/installer.
 - `install_webui.py`: Linux/macOS Python SSH uploader/installer.
 - `restore_backup.ps1`: rollback helper.
@@ -34,16 +32,15 @@ already rooted Logitech Harmony Hub.
 
 ```text
 /data/codex/bin/codex_webui
-/data/codex/bin/codex_hbus
-/data/codex/bin/codex_hal_ltcp
+/data/codex/bin/codex_daemon
+/data/codex/bin/codex_btstack
+/data/codex/bin/codex_sntp
 /data/codex/bin/codex_dhcpd
 /data/codex/bin/codex_portal
 /data/codex/init.sh
 /data/codex/recovery_ap.sh
 /data/codex/hub_id
-/data/codex/cloud_blocker.conf
 /data/codexmqtt/config.json
-/pkg/codexmqtt/codexmqtt.lua
 /usr/sbin/dropbear
 /usr/sbin/dropbearkey
 /etc/init.d/rcS.local
@@ -60,17 +57,14 @@ already rooted Logitech Harmony Hub.
 - Learned IR signals should be testable before saving.
 - The IR sweep page should favor fast staging in browser memory and hub-side
   batch sends that can be stopped.
-- Bluetooth HID keystroke accuracy matters. Prefer the included FIFO runtime
-  (`/data/codex/bin/codex_bthid_keyboard`, symlinked as
-  `/cache/bin/bthid_keyboard`) for text; it emits complete press/release frames
-  per key and avoids long key-held repeats.
+- Bluetooth HID: handled directly by `codex_btstack` reading `/tmp/bthid_input` FIFO.
+- IR sending: direct `/dev/i2s` hardware modulation via `ir_i2s.c` (stock Logitech HAL disabled).
 - MQTT should publish enough state for Home Assistant debugging, including IP
   address and bridge health.
-- Cloud blocker defaults to enabled. The System page saves
-  `/data/codex/cloud_blocker.conf`; missing or `1` blocks cloudapi, PubNub, and
-  package-manager tasks, while `0` allows them after reboot or network
-  reconnect. The installers reboot once after a normal cloud-blocking install
-  so new deployments finish with the blocker already active.
+- Cloud blocker defaults to enabled. Cloud blocking is implemented via `rcS.local`
+  startup patching which disables cloudapi, PubNub, and package-manager services.
+- Optional HTTP Basic authentication is supported via `/data/codex/webui_auth.conf`
+  with cached in-memory credentials.
 
 ## Verification Checklist
 
@@ -85,5 +79,5 @@ After changing web UI or runtime behavior:
 6. Send one known-good IR command.
 7. If Bluetooth changed, pair and send a short exact text script.
 8. If MQTT changed, verify discovery and state topics in Home Assistant.
-9. Tail `/cache/codex-init.log` and `/data/codex/ir-events.log`.
+9. Tail `/tmp/codex-init.log` and `/tmp/ir-events.log`.
 10. Confirm rollback can find the newest backup.

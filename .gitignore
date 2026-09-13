@@ -13,6 +13,8 @@ artifacts/
 release/
 
 # Device backups, firmware dumps, and extracted filesystems
+data/
+background/
 backups/
 diagnostics/
 firmware/
@@ -45,7 +47,11 @@ build/tmp/
 *.elf
 *.map
 
-# Python and PowerShell scratch
+# Python, Node, and PowerShell scratch
 __pycache__/
+node_modules/
 *.pyc
 *.ps1xml
+scratch/
+test_*
+scratch_*
