@@ -58,6 +58,13 @@ if [ -x /data/codex/bin/codex_sntp ]; then
   ) &
 fi
 
+# 5.2 Network Manager (USB Gadget 15s check, Ethernet startup & Wi-Fi fallback)
+if [ -x /data/codex/network_manager.sh ]; then
+  /data/codex/network_manager.sh boot >> "$LOG" 2>&1 &
+elif [ -x /data/codex/bin/network_manager.sh ]; then
+  /data/codex/bin/network_manager.sh boot >> "$LOG" 2>&1 &
+fi
+
 # 5.5 Boot crash watchdog & automatic rollback
 BOOT_FAILS=/data/codex/boot_fails
 if [ -f "$BOOT_FAILS" ]; then

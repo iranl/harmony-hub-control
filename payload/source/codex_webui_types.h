@@ -6,6 +6,7 @@
 #define BT_REMOTE_MAP_FILE "/data/codex/bt_remote_map.json"
 #define MQTT_CONFIG "/data/codexmqtt/config.json"
 #define WPA_CONFIG "/etc/wpa_supplicant.conf"
+#define ETHERNET_CONFIG "/data/codex/ethernet.conf"
 #define HUB_ID_FILE "/data/codex/hub_id"
 #define WEBUI_AUTH_CONFIG "/data/codex/webui_auth.conf"
 #define UPDATE_STATE_CONFIG "/data/codex/update_state.conf"
@@ -102,6 +103,34 @@ struct wifi_config {
     int open;
     char ssid[256];
     char psk[256];
+};
+
+struct ethernet_config {
+    int enabled;
+    int fallback_wifi;
+    int is_static;
+    char ip[64];
+    char netmask[64];
+    char gateway[64];
+    char dns[64];
+};
+
+struct network_status {
+    char active_interface[32];
+    char connection_type[32];
+    char ip[64];
+    char netmask[64];
+    char gateway[64];
+    char mac[32];
+    int eth_present;
+    int eth_carrier;
+    char eth_ifname[32];
+    char eth_ip[64];
+    int wifi_connected;
+    char wifi_ssid[128];
+    char wifi_ip[64];
+    int usb_host_mode;
+    int usb_pc_connected;
 };
 
 struct webui_auth_config {

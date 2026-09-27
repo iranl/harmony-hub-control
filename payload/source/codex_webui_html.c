@@ -13,7 +13,7 @@ static void page_head(FILE *f, const char *title) {
         "*{box-sizing:border-box}html,body{width:100%;max-width:100%;overflow-x:hidden}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.48 system-ui,-apple-system,Segoe UI,sans-serif}"
         "header{position:sticky;top:0;background:rgba(255,255,255,.98);backdrop-filter:saturate(1.15) blur(12px);border-bottom:1px solid var(--line);padding:12px 20px;z-index:3}"
         ".topbar{max-width:1280px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{display:flex;align-items:center;gap:11px}.brand-mark{width:34px;height:34px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:#fff;font-weight:750}.brand h1{letter-spacing:0}.brand small{display:block;color:var(--muted);font-size:12px}.top-status{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}"
-        ".app-shell{max-width:1280px;margin:0 auto;padding:22px 20px;display:grid;grid-template-columns:236px minmax(0,1fr);gap:22px}.side-menu{position:sticky;top:78px;align-self:start;display:grid;gap:5px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px;box-shadow:var(--shadow);min-width:0;max-width:100%}.menu-item{display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:center;text-align:left;border:0;background:transparent;color:var(--fg);border-radius:8px;padding:10px 11px;box-shadow:none;min-height:54px}.menu-item>*{min-width:0}.menu-item:hover{background:var(--soft)}.menu-item span:first-child{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:#edf3f2;color:var(--accent);font-size:0;position:relative}.menu-item span:first-child:before{content:\"\";display:block;width:13px;height:13px;border:2px solid currentColor;border-radius:4px}.menu-item[data-view-target=control] span:first-child:before{width:16px;height:16px;border-radius:50%;box-shadow:inset 0 0 0 4px #fff}.menu-item[data-view-target=activities] span:first-child:before{width:16px;height:12px;border:2px solid currentColor;border-radius:3px}.menu-item[data-view-target=ir] span:first-child:before{width:15px;height:9px;border-radius:9px}.menu-item[data-view-target=lab] span:first-child:before{width:15px;height:15px;border-radius:50%;box-shadow:inset 0 0 0 3px #fff}.menu-item[data-view-target=bluetooth] span:first-child:before{width:15px;height:15px;border-radius:50%;border-width:2px;box-shadow:0 -5px 0 -3px currentColor,0 5px 0 -3px currentColor}.menu-item[data-view-target=mqtt] span:first-child:before{width:14px;height:14px;border-radius:50%;border-width:2px}.menu-item[data-view-target=wifi] span:first-child:before{width:15px;height:10px;border:0;border-top:2px solid currentColor;border-radius:50%}.menu-item[data-view-target=backup] span:first-child:before{width:15px;height:12px;border-radius:3px}.menu-item[data-view-target=system] span:first-child:before{width:13px;height:13px;border-radius:50%}.menu-item strong{display:block;font-size:13px;line-height:1.15;overflow-wrap:anywhere}.menu-item small{display:block;color:var(--muted);font-size:11px;margin-top:2px;line-height:1.15;overflow-wrap:anywhere}.menu-item.active{background:var(--soft2);color:#0c514d}.menu-item.active span:first-child{background:#fff;box-shadow:inset 0 0 0 1px rgba(15,118,110,.14)}.content{min-width:0;max-width:100%;display:grid;gap:18px}.section{display:none;scroll-margin-top:94px;min-width:0;max-width:100%}.section.active{display:grid;gap:15px}.section-head{display:flex;align-items:end;justify-content:space-between;gap:12px;padding:2px 0 4px}.section-lead{max-width:100%;color:var(--muted);font-size:13px;margin-top:5px;overflow-wrap:break-word}"
+        ".app-shell{max-width:1280px;margin:0 auto;padding:22px 20px;display:grid;grid-template-columns:236px minmax(0,1fr);gap:22px}.side-menu{position:sticky;top:78px;align-self:start;display:grid;gap:5px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px;box-shadow:var(--shadow);min-width:0;max-width:100%}.menu-item{display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:center;text-align:left;border:0;background:transparent;color:var(--fg);border-radius:8px;padding:10px 11px;box-shadow:none;min-height:54px}.menu-item>*{min-width:0}.menu-item:hover{background:var(--soft)}.menu-item span:first-child{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:#edf3f2;color:var(--accent);font-size:0;position:relative}.menu-item span:first-child:before{content:\"\";display:block;width:13px;height:13px;border:2px solid currentColor;border-radius:4px}.menu-item[data-view-target=control] span:first-child:before{width:16px;height:16px;border-radius:50%;box-shadow:inset 0 0 0 4px #fff}.menu-item[data-view-target=activities] span:first-child:before{width:16px;height:12px;border:2px solid currentColor;border-radius:3px}.menu-item[data-view-target=ir] span:first-child:before{width:15px;height:9px;border-radius:9px}.menu-item[data-view-target=lab] span:first-child:before{width:15px;height:15px;border-radius:50%;box-shadow:inset 0 0 0 3px #fff}.menu-item[data-view-target=bluetooth] span:first-child:before{width:15px;height:15px;border-radius:50%;border-width:2px;box-shadow:0 -5px 0 -3px currentColor,0 5px 0 -3px currentColor}.menu-item[data-view-target=mqtt] span:first-child:before{width:14px;height:14px;border-radius:50%;border-width:2px}.menu-item[data-view-target=wifi] span:first-child:before,.menu-item[data-view-target=network] span:first-child:before{width:15px;height:10px;border:0;border-top:2px solid currentColor;border-radius:50%}.menu-item[data-view-target=backup] span:first-child:before{width:15px;height:12px;border-radius:3px}.menu-item[data-view-target=system] span:first-child:before{width:13px;height:13px;border-radius:50%}.menu-item strong{display:block;font-size:13px;line-height:1.15;overflow-wrap:anywhere}.menu-item small{display:block;color:var(--muted);font-size:11px;margin-top:2px;line-height:1.15;overflow-wrap:anywhere}.menu-item.active{background:var(--soft2);color:#0c514d}.menu-item.active span:first-child{background:#fff;box-shadow:inset 0 0 0 1px rgba(15,118,110,.14)}.content{min-width:0;max-width:100%;display:grid;gap:18px}.section{display:none;scroll-margin-top:94px;min-width:0;max-width:100%}.section.active{display:grid;gap:15px}.section-head{display:flex;align-items:end;justify-content:space-between;gap:12px;padding:2px 0 4px}.section-lead{max-width:100%;color:var(--muted);font-size:13px;margin-top:5px;overflow-wrap:break-word}"
         "h1{font-size:20px;margin:0}h2{font-size:24px;line-height:1.12;margin:0;font-weight:750}h3{font-size:15px;margin:0 0 10px}.panel h2{font-size:18px;line-height:1.2;margin:0 0 6px}.muted{color:var(--muted)}.mini{font-size:12px}.nowrap{white-space:nowrap}.subtle{font-size:12px;color:var(--muted);margin-top:2px}.help{font-size:12px;color:var(--muted);margin-top:5px}.help,.muted,.subtle,.callout{overflow-wrap:anywhere}.callout{border:1px solid #dbe7ef;border-left:4px solid var(--accent2);background:#fbfdff;border-radius:8px;padding:12px 14px;margin:0 0 12px;color:#263a52}.callout strong{display:block;margin-bottom:2px}.quick-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-top:14px}.quick-actions button{min-height:72px;text-align:left;background:#fff;color:var(--fg);border-color:var(--line);box-shadow:0 1px 2px rgba(20,40,32,.04);padding:14px}.quick-actions button strong{display:block;margin-bottom:4px}.quick-actions button:hover{border-color:#b9c8c4;background:#fbfefd}"
         ".grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}.dashboard-cards{grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px}.panel,.stat,.setup-shell{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;box-shadow:0 1px 2px rgba(20,40,32,.04);min-width:0;max-width:100%}.panel>*,.stat>*,.setup-shell>*{min-width:0;max-width:100%}.stat{min-height:92px;padding:17px}.stat .value{font-size:20px;font-weight:700;margin-top:5px}.stat .label{text-transform:uppercase;letter-spacing:0;color:var(--muted);font-size:11px}"
         ".kv{display:grid;grid-template-columns:132px 1fr;gap:6px 10px}.badge,.pill{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:3px 9px;background:var(--wash);font-size:12px}.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}"
@@ -33,7 +33,7 @@ static void page_head(FILE *f, const char *title) {
         "</style></head><body>",
         f);
     fprintf(f,
-        "<header><div class='topbar'><div class='brand'><div class='brand-mark'>H</div><div><h1>Harmony Hub Control</h1><small>Local smart home console</small></div></div><div class='top-status'><span class='pill'>Local control</span></div></div></header><main class='app-shell'><aside class='side-menu' aria-label='Main menu'><button type='button' class='menu-item active' data-view-target='overview'><span>D</span><div><strong>Dashboard</strong><small>Status</small></div></button><button type='button' class='menu-item' data-view-target='activities'><span>A</span><div><strong>Activities</strong><small>Run & setup</small></div></button><button type='button' class='menu-item' data-view-target='control'><span>R</span><div><strong>Control</strong><small>Send buttons</small></div></button><button type='button' class='menu-item' data-view-target='ir'><span>IR</span><div><strong>IR Setup</strong><small>Add remotes</small></div></button><button type='button' class='menu-item' data-view-target='lab'><span>L</span><div><strong>Bulk IR Test</strong><small>Queue IR codes</small></div></button><button type='button' class='menu-item' data-view-target='bluetooth'><span>BT</span><div><strong>Bluetooth</strong><small>Keyboard</small></div></button><button type='button' class='menu-item' data-view-target='remotes'><span>RC</span><div><strong>BT Remote</strong><small>Map buttons</small></div></button><button type='button' class='menu-item' data-view-target='mqtt'><span>M</span><div><strong>MQTT</strong><small>Home Assistant</small></div></button><button type='button' class='menu-item' data-view-target='wifi'><span>W</span><div><strong>Wi-Fi</strong><small>Network</small></div></button><button type='button' class='menu-item' data-view-target='backup'><span>B</span><div><strong>Backup</strong><small>Import/export</small></div></button><button type='button' class='menu-item' data-view-target='system'><span>S</span><div><strong>System</strong><small>Logs/update</small></div></button></aside><div class='content'>");
+        "<header><div class='topbar'><div class='brand'><div class='brand-mark'>H</div><div><h1>Harmony Hub Control</h1><small>Local smart home console</small></div></div><div class='top-status'><span class='pill'>Local control</span></div></div></header><main class='app-shell'><aside class='side-menu' aria-label='Main menu'><button type='button' class='menu-item active' data-view-target='overview'><span>D</span><div><strong>Dashboard</strong><small>Status</small></div></button><button type='button' class='menu-item' data-view-target='activities'><span>A</span><div><strong>Activities</strong><small>Run & setup</small></div></button><button type='button' class='menu-item' data-view-target='control'><span>R</span><div><strong>Control</strong><small>Send buttons</small></div></button><button type='button' class='menu-item' data-view-target='ir'><span>IR</span><div><strong>IR Setup</strong><small>Add remotes</small></div></button><button type='button' class='menu-item' data-view-target='lab'><span>L</span><div><strong>Bulk IR Test</strong><small>Queue IR codes</small></div></button><button type='button' class='menu-item' data-view-target='bluetooth'><span>BT</span><div><strong>Bluetooth</strong><small>Keyboard</small></div></button><button type='button' class='menu-item' data-view-target='remotes'><span>RC</span><div><strong>BT Remote</strong><small>Map buttons</small></div></button><button type='button' class='menu-item' data-view-target='mqtt'><span>M</span><div><strong>MQTT</strong><small>Home Assistant</small></div></button><button type='button' class='menu-item' data-view-target='network'><span>N</span><div><strong>Network</strong><small>Wi-Fi & Ethernet</small></div></button><button type='button' class='menu-item' data-view-target='backup'><span>B</span><div><strong>Backup</strong><small>Import/export</small></div></button><button type='button' class='menu-item' data-view-target='system'><span>S</span><div><strong>System</strong><small>Logs/update</small></div></button></aside><div class='content'>");
 }
 
 static void page_end(FILE *f) {
@@ -53,7 +53,7 @@ static void page_end(FILE *f) {
         "function loadWizardInventory(){if(wizardInventory)return Promise.resolve(wizardInventory);if(wizardInventoryPromise)return wizardInventoryPromise;wizardInventoryPromise=fetch('/api/inventory').then(r=>r.json()).then(j=>{wizardInventory=j;populateVerifyCommands();return wizardInventory;}).catch(e=>{wizardInventory=null;return null;}).finally(()=>{wizardInventoryPromise=null;});return wizardInventoryPromise;}"
         "document.querySelectorAll('[data-remote-skin]').forEach(img=>{img.src=REMOTE_SKIN_SRC;});"
         "document.querySelectorAll('[data-remote-b25-skin]').forEach(img=>{img.src=REMOTE_B25_SKIN_SRC;});"
-        "function showView(name){let panel='';if(name&&name.startsWith('ir-')){panel=name.slice(3);name='ir';}if(!name)name='overview';let found=false;document.querySelectorAll('[data-view]').forEach(s=>{const on=s.dataset.view===name;s.classList.toggle('active',on);if(on)found=true;});if(!found&&name!=='overview'){showView('overview');return;}document.querySelectorAll('[data-view-target]').forEach(b=>b.classList.toggle('active',b.dataset.viewTarget===name));if(location.hash!=='#'+name)history.replaceState(null,'','#'+name);if(name==='ir'&&panel)setTimeout(()=>showWizardPanel(panel),0);if(name==='activities')loadActivities();if(name==='remotes'){loadRemoteMappings();refreshBtBackend();}if(name==='bluetooth')startBtPolling();else stopBtPolling();window.scrollTo(0,0);setTimeout(()=>window.scrollTo(0,0),0);}"
+        "function showView(name){let panel='';if(name&&name.startsWith('ir-')){panel=name.slice(3);name='ir';}if(!name)name='overview';if(name==='wifi')name='network';let found=false;document.querySelectorAll('[data-view]').forEach(s=>{const on=s.dataset.view===name;s.classList.toggle('active',on);if(on)found=true;});if(!found&&name!=='overview'){showView('overview');return;}document.querySelectorAll('[data-view-target]').forEach(b=>b.classList.toggle('active',b.dataset.viewTarget===name));if(location.hash!=='#'+name)history.replaceState(null,'','#'+name);if(name==='ir'&&panel)setTimeout(()=>showWizardPanel(panel),0);if(name==='activities')loadActivities();if(name==='remotes'){loadRemoteMappings();refreshBtBackend();}if(name==='bluetooth')startBtPolling();else stopBtPolling();window.scrollTo(0,0);setTimeout(()=>window.scrollTo(0,0),0);}"
         "document.querySelectorAll('[data-view-target]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.viewTarget)));"
         "showView((location.hash||'#overview').slice(1));setTimeout(loadActivities,60);initWebUiWs();"
         "const importFile=$('importFile');if(importFile){importFile.addEventListener('change',()=>{const file=importFile.files&&importFile.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{const box=document.querySelector('textarea[name=payload]');if(box)box.value=reader.result||''};reader.readAsText(file);});}"
@@ -496,6 +496,8 @@ static void page_end(FILE *f) {
         "});});"
         "const mf=$('mqttForm');if(mf)mf.addEventListener('submit',async e=>{e.preventDefault();const st=$('mqttSaveStatus'),btn=mf.querySelector('button[type=submit]');if(st)st.textContent='Saving...';if(btn)btn.disabled=true;try{const res=await postForm(mf);if(st)st.textContent=(res.message||'Saved MQTT settings!');setTimeout(()=>{if(st)st.textContent='';},3000);}catch(err){if(st)st.textContent='Save failed: '+(err.message||err);}finally{if(btn)btn.disabled=false;}});"
         "const wf=$('wifiForm');if(wf)wf.addEventListener('submit',async e=>{e.preventDefault();const applyVal=e.submitter?.value||'save';const st=$('wifiSaveStatus'),btn=e.submitter;if(st)st.textContent=applyVal==='reboot'?'Saving and rebooting...':'Saving...';if(btn)btn.disabled=true;try{const res=await postForm(wf,{apply:applyVal});if(st)st.textContent=(res.message||(applyVal==='reboot'?'Wi-Fi saved. Rebooting hub...':'Wi-Fi saved!'));if(applyVal!=='reboot')setTimeout(()=>{if(st)st.textContent='';},3000);}catch(err){if(st)st.textContent='Save failed: '+(err.message||err);}finally{if(btn&&applyVal!=='reboot')btn.disabled=false;}});"
+        "const ef=$('ethernetForm');if(ef)ef.addEventListener('submit',async e=>{e.preventDefault();const applyVal=e.submitter?.value||'save';const st=$('ethSaveStatus'),btn=e.submitter;if(st)st.textContent=applyVal==='reboot'?'Saving and rebooting...':(applyVal==='reconfigure'?'Saving and applying...':'Saving...');if(btn)btn.disabled=true;try{const res=await postForm(ef,{apply:applyVal});if(st)st.textContent=(res.message||(applyVal==='reboot'?'Ethernet saved. Rebooting hub...':'Ethernet saved!'));if(applyVal!=='reboot')setTimeout(()=>{if(st)st.textContent='';},3000);}catch(err){if(st)st.textContent='Save failed: '+(err.message||err);}finally{if(btn&&applyVal!=='reboot')btn.disabled=false;}});"
+        "const em=$('ethModeSelect');if(em)em.addEventListener('change',()=>{const sf=$('ethStaticFields');if(sf)sf.classList.toggle('hidden',em.value!=='static');});"
         "const bf=$('backupImportForm');if(bf)bf.addEventListener('submit',async e=>{e.preventDefault();const st=$('backupImportStatus'),btn=bf.querySelector('button[type=submit]');if(st)st.textContent='Restoring...';if(btn)btn.disabled=true;try{const res=await postForm(bf);if(st)st.textContent=(res.message||'Backup restored!');wizardInventory=null;await loadWizardInventory();setTimeout(()=>{if(st)st.textContent='';},4000);}catch(err){if(st)st.textContent='Restore failed: '+(err.message||err);}finally{if(btn)btn.disabled=false;}});"
         "const saf=$('systemAuthForm');if(saf)saf.addEventListener('submit',async e=>{e.preventDefault();const st=$('authSaveStatus'),btn=saf.querySelector('button[type=submit]');if(st)st.textContent='Saving...';if(btn)btn.disabled=true;try{const res=await postForm(saf,{action:'auth'});if(st)st.textContent=(res.message||'Saved sign-in settings!');setTimeout(()=>{if(st)st.textContent='';},3000);}catch(err){if(st)st.textContent='Save failed: '+(err.message||err);}finally{if(btn)btn.disabled=false;}});"
         "const syf=$('systemActionsForm');if(syf)syf.addEventListener('submit',async e=>{e.preventDefault();const actVal=e.submitter?.value||'rediscover';const st=$('sysActionStatus'),btn=e.submitter;if(st)st.textContent=actVal==='reboot'?'Rebooting hub...':'Refreshing discovery...';if(btn)btn.disabled=true;try{const res=await postForm(syf,{action:actVal});if(st)st.textContent=(res.message||(actVal==='reboot'?'Rebooting...':'Discovery refreshed!'));if(actVal!=='reboot')setTimeout(()=>{if(st)st.textContent='';},3000);}catch(err){if(st)st.textContent='Action failed: '+(err.message||err);}finally{if(btn&&actVal!=='reboot')btn.disabled=false;}});"
@@ -658,7 +660,7 @@ static void status_panel(FILE *f, const struct mqtt_config *mqtt) {
     fprintf(f, "</span></div><div id='dashUpdateDetail' class='muted mini'>");
     html(f, update_detail);
     fprintf(f, "</div></div>");
-    fprintf(f, "</div><div class='quick-actions'><button type='button' data-view-target='activities'><strong>Activities</strong><div class='muted mini'>Run activities, edit start/stop sequences and delays.</div></button><button type='button' data-view-target='control'><strong>Use a remote</strong><div class='muted mini'>Send saved buttons from the remote skin or command list.</div></button><button type='button' data-view-target='ir'><strong>Add or edit remotes</strong><div class='muted mini'>Create devices, search databases, learn buttons, and edit commands.</div></button><button type='button' data-view-target='lab'><strong>Bulk test IR codes</strong><div class='muted mini'>Search many code files, skip duplicates, then send a queue.</div></button><button type='button' data-view-target='mqtt'><strong>Set up Home Assistant</strong><div class='muted mini'>Configure MQTT topics, discovery, and state publishing.</div></button><button type='button' data-view-target='wifi'><strong>Change Wi-Fi</strong><div class='muted mini'>Update the network and reboot when you are ready.</div></button><button type='button' data-view-target='backup'><strong>Back up settings</strong><div class='muted mini'>Download a restore point before larger changes.</div></button></div>");
+    fprintf(f, "</div><div class='quick-actions'><button type='button' data-view-target='activities'><strong>Activities</strong><div class='muted mini'>Run activities, edit start/stop sequences and delays.</div></button><button type='button' data-view-target='control'><strong>Use a remote</strong><div class='muted mini'>Send saved buttons from the remote skin or command list.</div></button><button type='button' data-view-target='ir'><strong>Add or edit remotes</strong><div class='muted mini'>Create devices, search databases, learn buttons, and edit commands.</div></button><button type='button' data-view-target='lab'><strong>Bulk test IR codes</strong><div class='muted mini'>Search many code files, skip duplicates, then send a queue.</div></button><button type='button' data-view-target='mqtt'><strong>Set up Home Assistant</strong><div class='muted mini'>Configure MQTT topics, discovery, and state publishing.</div></button><button type='button' data-view-target='network'><strong>Network settings</strong><div class='muted mini'>Configure Wi-Fi, Ethernet adapter, and failover.</div></button><button type='button' data-view-target='backup'><strong>Back up settings</strong><div class='muted mini'>Download a restore point before larger changes.</div></button></div>");
     fprintf(f, "</section>");
 }
 
@@ -779,15 +781,74 @@ static void mqtt_ha_integration_panel(FILE *f, const struct mqtt_config *cfg) {
                "    hold_secs: 0</pre></div>");
 }
 
-static void wifi_form(FILE *f, const struct wifi_config *cfg) {
-    fprintf(f, "<div class='panel'><h3>Network connection</h3><div class='help'>Save stores the new network. Save and reboot applies it now, so make a backup first if you are changing the network you are currently using.</div><form id='wifiForm' method='post' action='/wifi#wifi'>");
-    fprintf(f, "<label>Wi-Fi network name (SSID)</label><input name='ssid' autocomplete='off' required value='"); html(f, cfg->ssid); fprintf(f, "'><div class='help'>The hub will join this network after reboot.</div>");
+static void network_panel(FILE *f, const struct wifi_config *wifi, const struct ethernet_config *eth, const struct network_status *st) {
+    fprintf(f, "<section id='view-network' data-view='network' class='section'><div class='section-head'><div><h2>Network</h2><div class='section-lead'>Configure Wi-Fi connection, USB Ethernet adapter, and automatic network fallback.</div></div></div>");
+    fprintf(f, "<div class='grid'>");
+
+    /* 1. Current Network Status Card */
+    fprintf(f, "<div class='panel'><h3>Current network status</h3><div class='help'>Active connection and network interface details on the hub.</div>");
+    fprintf(f, "<div class='kv' style='margin-top:12px;'>");
+    fprintf(f, "<div><strong>Active Connection</strong></div><div><span class='badge %s'>%s</span></div>",
+            strcmp(st->active_interface, "none") != 0 ? "ok" : "bad",
+            st->connection_type[0] ? st->connection_type : "None");
+    fprintf(f, "<div><strong>Active Interface</strong></div><div><code>%s</code></div>",
+            st->active_interface[0] ? st->active_interface : "none");
+    fprintf(f, "<div><strong>IP Address</strong></div><div><code>%s</code></div>",
+            st->ip[0] ? st->ip : "None assigned");
+    fprintf(f, "<div><strong>Subnet Mask</strong></div><div><code>%s</code></div>",
+            st->netmask[0] ? st->netmask : "-");
+    fprintf(f, "<div><strong>Default Gateway</strong></div><div><code>%s</code></div>",
+            st->gateway[0] ? st->gateway : "-");
+    fprintf(f, "<div><strong>MAC Address</strong></div><div><code>%s</code></div>",
+            st->mac[0] ? st->mac : "-");
+    fprintf(f, "<div><strong>USB Controller</strong></div><div>%s</div>",
+            st->usb_host_mode ? "<span class='badge ok'>Host Mode (Ethernet)</span>" :
+            (st->usb_pc_connected ? "<span class='badge ok'>Gadget Mode (PC Connected)</span>" : "<span class='badge'>Gadget Mode (No PC)</span>"));
+    fprintf(f, "<div><strong>Ethernet Adapter</strong></div><div>%s</div>",
+            st->usb_host_mode ?
+                (st->eth_present ?
+                    (st->eth_carrier ? "<span class='badge ok'>Connected (Link Up)</span>" : "<span class='badge warn'>No Carrier / Cable Unplugged</span>")
+                    : "<span class='badge'>Not Detected</span>")
+                : "<span class='badge'>Disabled (USB Host Off)</span>");
+    fprintf(f, "<div><strong>Wi-Fi Status</strong></div><div>%s</div>",
+            st->wifi_connected ? "<span class='badge ok'>Connected</span>" : "<span class='badge'>Standby / Disconnected</span>");
+    fprintf(f, "</div>");
+    fprintf(f, "<div class='help' style='margin-top:12px;'>Ethernet takes priority when connected. If Ethernet cable is unplugged or fails, traffic automatically routes through Wi-Fi when fallback is enabled.</div>");
+    fprintf(f, "</div>");
+
+    /* 2. Ethernet & USB Host Settings Card */
+    fprintf(f, "<div class='panel'><h3>Ethernet &amp; USB Host</h3><div class='help'>Enable USB Host mode for USB Ethernet adapters (ASIX, RTL8152, CDC-Ether, etc.). On reboot, USB Gadget mode runs for 15s first to preserve PC recovery access if connected.</div>");
+    fprintf(f, "<form id='ethernetForm' method='post' action='/ethernet#network'>");
+    fprintf(f, "<label><input type='checkbox' name='eth_enabled' value='1' %s id='ethEnabledCheck'> <strong>Enable Ethernet / USB Host</strong></label>", eth->enabled ? "checked" : "");
+    fprintf(f, "<div class='help' style='margin-bottom:10px;'>When enabled, the hub switches USB to host mode to support USB network adapters.</div>");
+    fprintf(f, "<label><input type='checkbox' name='eth_fallback_wifi' value='1' %s> <strong>Fallback to Wi-Fi if Ethernet unavailable</strong></label>", eth->fallback_wifi ? "checked" : "");
+    fprintf(f, "<div class='help' style='margin-bottom:10px;'>If no Ethernet link or DHCP lease can be established, the hub automatically falls back to Wi-Fi.</div>");
+    fprintf(f, "<label>IP Assignment Mode</label>");
+    fprintf(f, "<select name='eth_mode' id='ethModeSelect'>");
+    fprintf(f, "<option value='dhcp' %s>DHCP (Automatic - Recommended)</option>", !eth->is_static ? "selected" : "");
+    fprintf(f, "<option value='static' %s>Static IP</option>", eth->is_static ? "selected" : "");
+    fprintf(f, "</select>");
+    fprintf(f, "<div id='ethStaticFields' class='%s' style='margin-top:8px;'>", eth->is_static ? "" : "hidden");
+    fprintf(f, "<label>Static IP Address</label><input name='eth_ip' placeholder='e.g. 192.168.1.50' value='"); html(f, eth->ip); fprintf(f, "'>");
+    fprintf(f, "<label>Subnet Mask</label><input name='eth_netmask' placeholder='e.g. 255.255.255.0' value='"); html(f, eth->netmask); fprintf(f, "'>");
+    fprintf(f, "<label>Default Gateway</label><input name='eth_gateway' placeholder='e.g. 192.168.1.1' value='"); html(f, eth->gateway); fprintf(f, "'>");
+    fprintf(f, "<label>DNS Server</label><input name='eth_dns' placeholder='e.g. 1.1.1.1' value='"); html(f, eth->dns); fprintf(f, "'>");
+    fprintf(f, "</div>");
+    fprintf(f, "<div class='actions'><button name='apply' value='save' type='submit'>Save Ethernet</button><button name='apply' value='reconfigure' type='submit' class='secondary'>Save and apply</button><button name='apply' value='reboot' type='submit' class='secondary'>Save and reboot</button><span id='ethSaveStatus' class='save-status subtle' style='margin-left:8px;align-self:center;'></span></div>");
+    fprintf(f, "</form></div>");
+
+    /* 3. Wi-Fi Settings Card */
+    fprintf(f, "<div class='panel'><h3>Wi-Fi connection</h3><div class='help'>Wi-Fi network credentials. Serves as wireless connection or automatic fallback when Ethernet is not connected.</div>");
+    fprintf(f, "<form id='wifiForm' method='post' action='/wifi#network'>");
+    fprintf(f, "<label>Wi-Fi network name (SSID)</label><input name='ssid' autocomplete='off' required value='"); html(f, wifi->ssid); fprintf(f, "'><div class='help'>The hub will join this network.</div>");
     fprintf(f, "<label>Password</label><input name='password' type='password' autocomplete='current-password' placeholder='Leave blank to keep current'>");
     fprintf(f, "<label><input type='checkbox' name='keep_password' value='1' checked> Keep current password when blank</label>");
-    fprintf(f, "<label><input type='checkbox' name='hidden' value='1' %s> Hidden network</label>", cfg->hidden ? "checked" : "");
-    fprintf(f, "<label><input type='checkbox' name='open' value='1' %s> No password / open network</label>", cfg->open ? "checked" : "");
+    fprintf(f, "<label><input type='checkbox' name='hidden' value='1' %s> Hidden network</label>", wifi->hidden ? "checked" : "");
+    fprintf(f, "<label><input type='checkbox' name='open' value='1' %s> No password / open network</label>", wifi->open ? "checked" : "");
     fprintf(f, "<div class='actions'><button name='apply' value='save' type='submit'>Save Wi-Fi</button><button name='apply' value='reconfigure' type='submit' class='secondary'>Save and apply</button><button name='apply' value='reboot' type='submit' class='secondary'>Save and reboot</button><span id='wifiSaveStatus' class='save-status subtle' style='margin-left:8px;align-self:center;'></span></div>");
     fprintf(f, "</form></div>");
+
+    fprintf(f, "</div></section>");
 }
 
 static void backup_panel(FILE *f) {
@@ -800,12 +861,13 @@ static void backup_panel(FILE *f) {
     fprintf(f, "<a class='button' href='/export/protocols'>Protocols</a>");
     fprintf(f, "<a class='button' href='/export/mqtt'>MQTT</a>");
     fprintf(f, "<a class='button' href='/export/wifi'>Wi-Fi</a>");
+    fprintf(f, "<a class='button' href='/export/network'>Ethernet</a>");
     fprintf(f, "<a class='button' href='/export/bluetooth'>Bluetooth devices</a>");
     fprintf(f, "<a class='button' href='/export/remote-mapping'>BT remote mapping</a>");
     fprintf(f, "<a class='button' href='/export/auth'>WebUI auth</a>");
     fprintf(f, "<a class='button' href='/export/hub-id'>Hub ID</a>");
     fprintf(f, "</div></div>");
-    fprintf(f, "<div class='panel'><h3>Restore from backup</h3><div class='help'>Choose what the pasted backup contains. Wi-Fi restores are saved immediately but do not take effect until reboot.</div><form id='backupImportForm' method='post' action='/import#backup'>");
+    fprintf(f, "<div class='panel'><h3>Restore from backup</h3><div class='help'>Choose what the pasted backup contains. Wi-Fi and Ethernet restores are saved immediately but do not take effect until reboot.</div><form id='backupImportForm' method='post' action='/import#backup'>");
     fprintf(f, "<label for='backupTarget'>Backup type</label><select id='backupTarget' name='target'>");
     fprintf(f, "<option value='bundle'>Full backup bundle</option>");
     fprintf(f, "<option value='activities'>ActivityList.json</option>");
@@ -814,6 +876,7 @@ static void backup_panel(FILE *f) {
     fprintf(f, "<option value='protocols'>ProtocolList.json</option>");
     fprintf(f, "<option value='mqtt'>MQTT config</option>");
     fprintf(f, "<option value='wifi'>Wi-Fi config</option>");
+    fprintf(f, "<option value='ethernet'>Ethernet config</option>");
     fprintf(f, "<option value='bluetooth'>Bluetooth devices</option>");
     fprintf(f, "<option value='remote-mapping'>bt_remote_map.json</option>");
     fprintf(f, "<option value='auth'>webui_auth.conf</option>");
@@ -1626,9 +1689,8 @@ static void bluetooth_panel(FILE *f) {
                "<button id='btReleaseAll' type='button' class='danger' style='font-size:12px;padding:5px 9px;min-height:30px;'>Release all</button></div></div>"
                "<div id='btFwdNote' class='help' style='margin-top:4px;'>Click keys or toggle physical keyboard forwarding to type directly into the host.</div>"
 
-               "<div style='display:flex;gap:18px;margin-top:14px;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;'>"
-               "<div style='flex:1 1 640px;min-width:0;max-width:100%;'>"
-               "<div class='kb-panel'>");
+                "<div style='display:flex;gap:14px;margin-top:12px;align-items:flex-start;overflow-x:auto;padding-bottom:4px;'>"
+                "<div style='flex:0 0 auto;'><div class='kb-panel'>");
 
     /* Full Keyboard Rows */
     fprintf(f, "<div class='kb-row'>"
@@ -1691,31 +1753,28 @@ static void bluetooth_panel(FILE *f) {
                "<button type='button' class='kb-key' data-key='down'>&#9660;</button>"
                "<button type='button' class='kb-key' data-key='right'>&#9654;</button></div></div></div>");
 
-    /* D-Pad & Navigation + Media controls placed alongside */
-    fprintf(f, "<div style='display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;flex:0 0 auto;'>"
-               "<div style='display:grid;place-items:center;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:12px;'>"
-               "<div style='display:grid;grid-template-columns:repeat(3,44px);gap:4px;'>"
-               "<div></div><button type='button' class='kb-key' style='width:44px;height:40px;' data-key='up'>&#9650;</button><div></div>"
-               "<button type='button' class='kb-key' style='width:44px;height:40px;' data-key='left'>&#9664;</button>"
-               "<button type='button' class='kb-key' style='width:44px;height:40px;font-weight:700;' data-key='select'>OK</button>"
-               "<button type='button' class='kb-key' style='width:44px;height:40px;' data-key='right'>&#9654;</button>"
-               "<div></div><button type='button' class='kb-key' style='width:44px;height:40px;' data-key='down'>&#9660;</button><div></div></div>"
-               "<div style='display:flex;gap:6px;margin-top:8px;'>"
-               "<button type='button' class='kb-key' style='height:32px;padding:0 8px;' data-key='back'>&#8617; Back</button>"
-               "<button type='button' class='kb-key' style='height:32px;padding:0 8px;' data-key='home'>Home</button>"
-               "<button type='button' class='kb-key' style='height:32px;padding:0 8px;' data-key='menu'>Menu</button></div></div>"
-               "<div style='display:grid;gap:6px;align-content:center;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:12px;'>"
-               "<div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;'>"
-               "<button type='button' class='kb-key' style='height:38px;' data-key='vol_up'>Vol +</button>"
-               "<button type='button' class='kb-key' style='height:38px;' data-key='vol_down'>Vol -</button></div>"
-               "<div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;'>"
-               "<button type='button' class='kb-key' style='height:38px;' data-key='mute'>Mute</button>"
-               "<button type='button' class='kb-key' style='height:38px;' data-key='play_pause'>Play/Pause</button></div>"
-               "<div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;'>"
-               "<button type='button' class='kb-key' style='height:38px;' data-key='rewind'>Rewind</button>"
-               "<button type='button' class='kb-key' style='height:38px;' data-key='fastforward'>Fast Fwd</button></div></div></div>");
-
-    fprintf(f, "</div></div>"); /* end flex row, end Remote & Keyboard panel */
+    /* Unified D-Pad & Navigation + Media controls placed alongside keyboard */
+    fprintf(f, "<div style='flex:0 0 auto;display:flex;gap:14px;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:12px 14px;align-items:center;'>"
+               "<div style='display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;'>"
+               "<div style='display:grid;grid-template-columns:repeat(3,40px);gap:4px;'>"
+               "<div></div><button type='button' class='kb-key' style='width:40px;height:36px;min-width:40px;padding:0;' data-key='up'>&#9650;</button><div></div>"
+               "<button type='button' class='kb-key' style='width:40px;height:36px;min-width:40px;padding:0;' data-key='left'>&#9664;</button>"
+               "<button type='button' class='kb-key' style='width:40px;height:36px;min-width:40px;padding:0;font-weight:700;' data-key='select'>OK</button>"
+               "<button type='button' class='kb-key' style='width:40px;height:36px;min-width:40px;padding:0;' data-key='right'>&#9654;</button>"
+               "<div></div><button type='button' class='kb-key' style='width:40px;height:36px;min-width:40px;padding:0;' data-key='down'>&#9660;</button><div></div></div>"
+               "<div style='display:flex;gap:5px;'>"
+               "<button type='button' class='kb-key' style='height:30px;min-width:38px;padding:0 6px;font-size:11px;' data-key='back'>&#8617; Back</button>"
+               "<button type='button' class='kb-key' style='height:30px;min-width:38px;padding:0 6px;font-size:11px;' data-key='home'>Home</button>"
+               "<button type='button' class='kb-key' style='height:30px;min-width:38px;padding:0 6px;font-size:11px;' data-key='menu'>Menu</button></div></div>"
+               "<div style='width:1px;align-self:stretch;background:var(--line);margin:0 2px;'></div>"
+               "<div style='display:grid;grid-template-columns:repeat(2,64px);gap:6px;align-content:center;'>"
+               "<button type='button' class='kb-key' style='height:34px;min-width:64px;padding:0 4px;font-size:11px;' data-key='vol_up'>Vol +</button>"
+               "<button type='button' class='kb-key' style='height:34px;min-width:64px;padding:0 4px;font-size:11px;' data-key='vol_down'>Vol -</button>"
+               "<button type='button' class='kb-key' style='height:34px;min-width:64px;padding:0 4px;font-size:11px;' data-key='mute'>Mute</button>"
+               "<button type='button' class='kb-key' style='height:34px;min-width:64px;padding:0 4px;font-size:11px;' data-key='play_pause'>Play/Pause</button>"
+               "<button type='button' class='kb-key' style='height:34px;min-width:64px;padding:0 4px;font-size:11px;' data-key='rewind'>&#9664;&#9664; Rew</button>"
+               "<button type='button' class='kb-key' style='height:34px;min-width:64px;padding:0 4px;font-size:11px;' data-key='fastforward'>Fwd &#9654;&#9654;</button></div>"
+               "</div></div></div>");
 
     /* Type Text & Scripting placed below Remote & Keyboard */
     fprintf(f, "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;'>"
@@ -2024,6 +2083,8 @@ void render_page(int fd, const struct request *req, const char *message) {
     }
     struct mqtt_config mqtt;
     struct wifi_config wifi;
+    struct ethernet_config eth;
+    struct network_status net_st;
     char *body = NULL;
     size_t body_len = 0;
     char hdr[200];
@@ -2034,6 +2095,8 @@ void render_page(int fd, const struct request *req, const char *message) {
     if (!f) return;
     load_mqtt(&mqtt);
     load_wifi(&wifi);
+    load_ethernet(&eth);
+    get_network_status(&net_st);
     page_head(f, "Harmony Hub Control");
     if (message && message[0]) {
         fprintf(f, "<div class='msg'>");
@@ -2046,9 +2109,7 @@ void render_page(int fd, const struct request *req, const char *message) {
     mqtt_form(f, &mqtt);
     mqtt_ha_integration_panel(f, &mqtt);
     fprintf(f, "</div></section>");
-    fprintf(f, "<section id='view-wifi' data-view='wifi' class='section'><div class='section-head'><div><h2>Wi-Fi</h2><div class='section-lead'>Change the network the hub joins. If the saved Wi-Fi stops working, hold the reset button to start the recovery access point.</div></div></div><div class='grid'>");
-    wifi_form(f, &wifi);
-    fprintf(f, "</div></section>");
+    network_panel(f, &wifi, &eth, &net_st);
     ir_control_panel(f);
     ir_panel(f);
     ir_lab_panel(f);

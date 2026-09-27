@@ -1,7 +1,6 @@
 # Build Notes
 
-The repository ships ready-to-install MIPS binaries in `payload/bin/`. Rebuild
-only when native source changes.
+The repository ships ready-to-install MIPS binaries in `payload/bin/`. Rebuild only when native source changes.
 
 ## Target
 
@@ -31,12 +30,8 @@ After rebuilding:
 
 ## Windows
 
-Windows can deploy with PowerShell, and Linux/macOS can deploy with the Python
-installer. Use WSL, a Linux VM, or the existing build server for rebuilding MIPS
-binaries.
+Windows can deploy with PowerShell, and Linux/macOS can deploy with the Python installer. Use WSL, a Linux VM, or the existing build server for rebuilding MIPS binaries.
 
 ## Dropbear
 
-`dropbearmulti` is included so the web UI package can keep SSH reachable on a
-rooted hub. The installer does not replace `authorized_keys`; it only uploads
-Dropbear binaries/wrappers and starts the service if needed.
+`dropbearmulti` is included so the web UI package can keep SSH reachable on a rooted hub. The installer does not replace `authorized_keys`; it only uploads Dropbear binaries/wrappers and starts the service if needed.

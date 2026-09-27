@@ -34,10 +34,10 @@ When a hub is factory reset, `/data/resources/Context.json` is erased. In this s
 
 ## 1. Complete uboot reset to unbrick the Hub and reconnect to WiFi.  
 
-1. Press the Reset button on the hub while powering on the hub. 
+1. Press and hold the Reset button on the hub then plug in the USB power cable.
 2. The red LED on the front of the hub should blink repeatedly for +-30-60 seconds.
 3. This will reset the Hub to its factory default state.
-4. Connect the Hub to USB
+4. Connect the Hub to a USB port on your computer using the micro usb cable.
 5. Use the harmony-hub-root project to set WiFi credentials, do not try to root yet
 
 ## 2. Hardware Preparation & UART Pinout

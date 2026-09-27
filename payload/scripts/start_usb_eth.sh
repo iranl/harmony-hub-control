@@ -34,6 +34,8 @@ for mod in usbnet asix cdc_ether r8152 smsc95xx dm9601 rtl8150 rndis_host cdc_su
     insmod "$DIR/$mod.ko" 2>/dev/null
   elif [ -f "$DIR/modules/$mod.ko" ]; then
     insmod "$DIR/modules/$mod.ko" 2>/dev/null
+  elif [ -f "/mnt/data/usb_eth/$mod.ko" ]; then
+    insmod "/mnt/data/usb_eth/$mod.ko" 2>/dev/null
   fi
 done
 

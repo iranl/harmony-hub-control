@@ -12,6 +12,9 @@ void parse_wpa_quoted(const char *raw, const char *key, char *out, size_t outlen
 void load_wifi(struct wifi_config *cfg);
 void wpa_write_quoted(FILE *f, const char *s);
 int save_wifi(const struct wifi_config *cfg);
+void load_ethernet(struct ethernet_config *cfg);
+int save_ethernet(const struct ethernet_config *cfg);
+void get_network_status(struct network_status *st);
 int load_hub_id(char *hub_id, size_t hub_id_len);
 void trigger_mqtt_discover(void);
 void request_resource_reload(void);
@@ -23,6 +26,7 @@ void send_bundle_download(int fd);
 /* Form Handlers */
 void handle_mqtt(int fd, const struct request *req);
 void handle_wifi(int fd, const struct request *req);
+void handle_ethernet(int fd, const struct request *req);
 void handle_system(int fd, const struct request *req);
 void handle_import(int fd, const struct request *req);
 void render_import_validate_json(int fd, const struct request *req);

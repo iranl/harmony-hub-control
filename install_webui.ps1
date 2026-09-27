@@ -4,7 +4,6 @@ param(
     [string]$KeyPath,
     [int]$Port = 22,
     [string]$SshUser = "root",
-    [string]$HubId,
     [string]$MqttBroker = "",
     [int]$MqttPort = 1883,
     [string]$MqttUser = "",
@@ -51,10 +50,6 @@ function Resolve-DefaultKeyPath() {
     return $keys[0].FullName
 }
 
-function Test-HubId([string]$Value) {
-    return [bool]($Value -match '^[0-9]{4,}$')
-}
-
 function Get-UniquePathList([string[]]$Paths) {
     $seen = @{}
     $out = @()
@@ -65,52 +60,6 @@ function Get-UniquePathList([string[]]$Paths) {
         $out += $path
     }
     return $out
-}
-
-function Resolve-SavedHubId([string]$HubHost) {
-    $userRoot = $env:USERPROFILE
-    if (-not $userRoot) { $userRoot = [Environment]::GetFolderPath("UserProfile") }
-    $paths = @()
-    if ($userRoot) {
-        $paths += Join-Path $userRoot ".harmony-hub\known_hubs.json"
-        $paths += Join-Path $userRoot ".harmony-hub\last_root.json"
-        $paths += Join-Path $userRoot ".harmony-hub\hub_id.txt"
-    }
-    if ($HOME -and $HOME -ne $userRoot) {
-        $paths += Join-Path $HOME ".harmony-hub\known_hubs.json"
-        $paths += Join-Path $HOME ".harmony-hub\last_root.json"
-        $paths += Join-Path $HOME ".harmony-hub\hub_id.txt"
-    }
-    $paths += Join-Path $ScriptRoot "harmony_hub_id.txt"
-
-    foreach ($path in (Get-UniquePathList $paths)) {
-        if (-not (Test-Path -LiteralPath $path -PathType Leaf -ErrorAction SilentlyContinue)) { continue }
-        try {
-            if ($path.EndsWith("known_hubs.json")) {
-                $known = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
-                $entry = $known.PSObject.Properties[$HubHost].Value
-                if ($entry -and (Test-HubId $entry.hub_id)) {
-                    return [pscustomobject]@{ HubId = [string]$entry.hub_id; Source = $path }
-                }
-            }
-            elseif ($path.EndsWith("last_root.json")) {
-                $last = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
-                if ($last.host -eq $HubHost -and (Test-HubId $last.hub_id)) {
-                    return [pscustomobject]@{ HubId = [string]$last.hub_id; Source = $path }
-                }
-            }
-            else {
-                $value = (Get-Content -LiteralPath $path -Raw).Trim()
-                if (Test-HubId $value) {
-                    return [pscustomobject]@{ HubId = $value; Source = $path }
-                }
-            }
-        }
-        catch {
-            Info "ignored unreadable Hub ID handoff file ${path}: $($_.Exception.Message)"
-        }
-    }
-    return $null
 }
 
 function Quote-ProcessArg([string]$Arg) {
@@ -360,7 +309,8 @@ if ($hasExistingMqtt) {
             $parsed = $rawMqtt | ConvertFrom-Json
             if ($parsed.broker -and $parsed.broker.host) { $brokerHint = $parsed.broker.host }
         }
-    } catch {}
+    }
+    catch {}
 
     if (-not $NoPrompt -and -not $MqttBroker -and -not $MqttDisabled) {
         $promptMsg = if ($brokerHint) { "Existing MQTT configuration found on hub (broker: $brokerHint). Keep current configuration? [Y/n]" } else { "Existing MQTT configuration found on hub. Keep current configuration? [Y/n]" }
@@ -387,32 +337,6 @@ if (-not $keepExistingMqtt) {
     }
 }
 
-if (-not $HubId) {
-    $existingHubId = (Invoke-Remote "cat /data/codex/hub_id 2>/dev/null || true" $null 30000).Trim()
-    if ($existingHubId) {
-        $HubId = $existingHubId
-        Info "hub id from existing /data/codex/hub_id: $HubId"
-    }
-    else {
-        $savedHub = Resolve-SavedHubId $HubHost
-        if ($savedHub) {
-            $HubId = $savedHub.HubId
-            Info "hub id from root-tool handoff: $HubId ($($savedHub.Source))"
-        }
-    }
-}
-if (-not (Test-HubId $HubId)) {
-    if ($HubId) {
-        throw "Invalid Hub ID '$HubId'. Re-run the root tool or pass the numeric Hub ID with -HubId."
-    }
-    elseif (-not $NoPrompt) {
-        throw "Hub ID is required. Re-run the root tool so it writes the handoff file, or pass -HubId with the numeric value printed as hub_id=..."
-    }
-}
-if (-not $HubId) {
-    throw "Hub ID is required. Re-run the root tool so it writes the handoff file, or pass -HubId with the numeric value printed as hub_id=..."
-}
-Info "using hub id $HubId"
 
 Step "Streaming remote backup to local host"
 $backupDir = Join-Path $ScriptRoot "backups"
@@ -448,7 +372,6 @@ $candidatePaths = @(
     "/data/codex/usb_eth/stop_usb_eth.sh",
 
     # Core system & network config
-    "/data/codex/hub_id",
     "/etc/tdeenable",
     "/etc/nowatchdog",
     "/etc/version",
@@ -560,6 +483,9 @@ Upload-Bytes (Join-Path $Payload "scripts\init.sh") "/data/codex/init.sh" "755"
 Upload-Bytes (Join-Path $Payload "scripts\bt_reconnect.sh") "/data/codex/bt_reconnect.sh" "755"
 Upload-Bytes (Join-Path $Payload "scripts\recovery_ap.sh") "/data/codex/recovery_ap.sh" "755"
 Upload-Bytes (Join-Path $Payload "scripts\rcS.local") "/etc/init.d/rcS.local" "755"
+if (Test-Path -LiteralPath (Join-Path $Payload "scripts\network_manager.sh")) {
+    Upload-Bytes (Join-Path $Payload "scripts\network_manager.sh") "/data/codex/network_manager.sh" "755"
+}
 if (Test-Path -LiteralPath (Join-Path $Payload "scripts\start_usb_eth.sh")) {
     Upload-Bytes (Join-Path $Payload "scripts\start_usb_eth.sh") "/mnt/data/usb_eth/start_usb_eth.sh" "755"
 }
@@ -576,7 +502,6 @@ if (Test-Path -LiteralPath $modulesDir -PathType Container) {
 }
 
 Step "Uploading configuration"
-Upload-Text "$HubId`n" "/data/codex/hub_id" "644"
 Upload-Text "1`n" "/etc/tdeenable" "644"
 Upload-Text "1`n" "/etc/nowatchdog" "644"
 if ($keepExistingMqtt) {
@@ -595,10 +520,12 @@ $post = "rm -rf /pkg/codexmqtt /data/codex/cloud_blocker.conf /data/codex/bt_bac
 "ln -sf /mnt/data/usb_eth/stop_usb_eth.sh /data/codex/bin/stop_usb_eth.sh 2>/dev/null || true; " +
 "ln -sf /mnt/data/usb_eth/start_usb_eth.sh /usr/sbin/start_usb_eth.sh 2>/dev/null || true; " +
 "ln -sf /mnt/data/usb_eth/stop_usb_eth.sh /usr/sbin/stop_usb_eth.sh 2>/dev/null || true; " +
+"ln -sf /data/codex/network_manager.sh /data/codex/bin/network_manager.sh 2>/dev/null || true; " +
+"ln -sf /data/codex/network_manager.sh /usr/sbin/network_manager.sh 2>/dev/null || true; " +
 "chmod 755 /mnt/data/usb_eth/*.sh /mnt/data/usb_eth/register_ehci /data/codex/bin/register_ehci 2>/dev/null || true; " +
 "ln -sf dropbearmulti /data/codex/bin/dropbear; " +
 "ln -sf dropbearmulti /data/codex/bin/dropbearkey; " +
-"chmod 755 /data/codex/bin/dropbearmulti /data/codex/bin/codex_dhcpd /data/codex/bin/codex_btstack /data/codex/bin/codex_sntp /data/codex/bin/codex_portal /data/codex/bin/codex_webui /data/codex/bin/codex_daemon /data/codex/init.sh /data/codex/bt_reconnect.sh /data/codex/recovery_ap.sh /usr/sbin/dropbear /usr/sbin/dropbearkey /etc/init.d/rcS.local 2>/dev/null || true; " +
+"chmod 755 /data/codex/bin/dropbearmulti /data/codex/bin/codex_dhcpd /data/codex/bin/codex_btstack /data/codex/bin/codex_sntp /data/codex/bin/codex_portal /data/codex/bin/codex_webui /data/codex/bin/codex_daemon /data/codex/init.sh /data/codex/bt_reconnect.sh /data/codex/recovery_ap.sh /data/codex/network_manager.sh /usr/sbin/dropbear /usr/sbin/dropbearkey /etc/init.d/rcS.local 2>/dev/null || true; " +
 "chmod 600 /data/codexmqtt/config.json 2>/dev/null || true; " +
 "chmod -x /usr/sbin/bluetoothd 2>/dev/null || true; " +
 "/bin/busybox sync 2>/dev/null || true"
@@ -656,4 +583,3 @@ Step "Done"
 Info "Web UI: http://$HubHost`:8080/"
 Info "Web UI authentication: disabled"
 Info "Backup saved locally: $backupTar"
-Info "If IR commands do not work, update /data/codex/hub_id with the correct hub id and restart codex_webui."

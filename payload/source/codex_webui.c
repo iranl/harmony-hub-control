@@ -174,6 +174,8 @@ static void handle_client(int client) {
         send_file_download(client, MQTT_CONFIG, "mqtt-config.json", "application/json");
     } else if (strcmp(req.method, "GET") == 0 && strcmp(req.path, "/export/wifi") == 0) {
         send_file_download(client, WPA_CONFIG, "wpa_supplicant.conf", "text/plain");
+    } else if (strcmp(req.method, "GET") == 0 && (strcmp(req.path, "/export/ethernet") == 0 || strcmp(req.path, "/export/network") == 0)) {
+        send_file_download(client, ETHERNET_CONFIG, "ethernet.conf", "text/plain");
     } else if (strcmp(req.method, "GET") == 0 && strcmp(req.path, "/export/bluetooth") == 0) {
         send_bt_devices_download(client);
     } else if (strcmp(req.method, "GET") == 0 && (strcmp(req.path, "/export/remote-mapping") == 0 || strcmp(req.path, "/export/remotemap") == 0)) {
@@ -194,6 +196,30 @@ static void handle_client(int client) {
         handle_mqtt(client, &req);
     } else if (strcmp(req.method, "POST") == 0 && strcmp(req.path, "/wifi") == 0) {
         handle_wifi(client, &req);
+    } else if (strcmp(req.method, "POST") == 0 && (strcmp(req.path, "/ethernet") == 0 || strcmp(req.path, "/network") == 0)) {
+        handle_ethernet(client, &req);
+    } else if (strcmp(req.method, "GET") == 0 && strcmp(req.path, "/api/network-status") == 0) {
+        struct network_status st;
+        get_network_status(&st);
+        cJSON *res = cJSON_CreateObject();
+        cJSON_AddBoolToObject(res, "ok", 1);
+        cJSON_AddStringToObject(res, "activeInterface", st.active_interface);
+        cJSON_AddStringToObject(res, "connectionType", st.connection_type);
+        cJSON_AddStringToObject(res, "ip", st.ip);
+        cJSON_AddStringToObject(res, "netmask", st.netmask);
+        cJSON_AddStringToObject(res, "gateway", st.gateway);
+        cJSON_AddStringToObject(res, "mac", st.mac);
+        cJSON_AddBoolToObject(res, "ethPresent", st.eth_present);
+        cJSON_AddBoolToObject(res, "ethCarrier", st.eth_carrier);
+        cJSON_AddStringToObject(res, "ethIfname", st.eth_ifname);
+        cJSON_AddStringToObject(res, "ethIp", st.eth_ip);
+        cJSON_AddBoolToObject(res, "wifiConnected", st.wifi_connected);
+        cJSON_AddStringToObject(res, "wifiSsid", st.wifi_ssid);
+        cJSON_AddStringToObject(res, "wifiIp", st.wifi_ip);
+        cJSON_AddBoolToObject(res, "usbHostMode", st.usb_host_mode);
+        cJSON_AddBoolToObject(res, "usbPcConnected", st.usb_pc_connected);
+        send_cjson_resp(client, "200 OK", res);
+        cJSON_Delete(res);
     } else if (strcmp(req.method, "POST") == 0 && strcmp(req.path, "/system") == 0) {
         handle_system(client, &req);
     } else if (strcmp(req.method, "POST") == 0 && strcmp(req.path, "/import") == 0) {

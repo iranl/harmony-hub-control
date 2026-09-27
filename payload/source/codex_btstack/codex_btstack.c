@@ -1708,10 +1708,9 @@ static void dispatch_button_event(const char *btn, int is_press) {
         }
         if (g_host_connected && g_host_hid_cid) {
             if (is_press) {
-                int is_select = (strcasecmp(cmd, "select") == 0 || strcasecmp(cmd, "enter") == 0 || strcasecmp(cmd, "OK") == 0);
-                int hold_mode = (is_select && g_remote_wake_grace_active) ? 0 : 1;
+                int hold_mode = g_remote_wake_grace_active ? 0 : 1;
                 send_host_named_key_ex(cmd, hold_mode);
-                snprintf(msg, sizeof(msg), "Dispatched passthrough_bt %s: %s%s", hold_mode ? "hold" : "tap", cmd, (is_select && g_remote_wake_grace_active) ? " (wake-grace tap)" : "");
+                snprintf(msg, sizeof(msg), "Dispatched passthrough_bt %s: %s%s", hold_mode ? "hold" : "tap", cmd, g_remote_wake_grace_active ? " (wake-grace tap)" : "");
             } else {
                 send_host_release_all();
                 snprintf(msg, sizeof(msg), "Dispatched passthrough_bt release: %s", cmd);
@@ -1727,10 +1726,9 @@ static void dispatch_button_event(const char *btn, int is_press) {
             }
             if (g_host_connected && g_host_hid_cid) {
                 if (is_press) {
-                    int is_select = (strcasecmp(cmd, "select") == 0 || strcasecmp(cmd, "enter") == 0 || strcasecmp(cmd, "OK") == 0);
-                    int hold_mode = (is_select && g_remote_wake_grace_active) ? 0 : 1;
+                    int hold_mode = g_remote_wake_grace_active ? 0 : 1;
                     if (send_host_named_key_ex(cmd, hold_mode)) {
-                        snprintf(msg, sizeof(msg), "Dispatched device_cmd %s to BT host: dev=%s cmd=%s%s", hold_mode ? "hold" : "tap", target, cmd, (is_select && g_remote_wake_grace_active) ? " (wake-grace tap)" : "");
+                        snprintf(msg, sizeof(msg), "Dispatched device_cmd %s to BT host: dev=%s cmd=%s%s", hold_mode ? "hold" : "tap", target, cmd, g_remote_wake_grace_active ? " (wake-grace tap)" : "");
                         codex_log_debug(msg);
                         return;
                     }

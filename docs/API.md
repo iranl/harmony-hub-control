@@ -1,10 +1,8 @@
 # Local Control API
 
-The web UI intentionally has no HTTP authentication. Run it only on a trusted
-LAN or behind your own access controls.
+The web UI intentionally has no HTTP authentication. Run it only on a trusted LAN or behind your own access controls.
 
-All write endpoints accept `application/x-www-form-urlencoded` bodies. JSON
-responses use `ok: true` on success and `ok: false` with `error` on failure.
+All write endpoints accept `application/x-www-form-urlencoded` bodies. JSON responses use `ok: true` on success and `ok: false` with `error` on failure.
 
 ## Inventory
 
@@ -12,8 +10,7 @@ responses use `ok: true` on success and `ok: false` with `error` on failure.
 Invoke-RestMethod "http://<hub-ip>:8080/api/inventory"
 ```
 
-Returns hub limits, configured devices, command names, keycode/raw flags, and
-local command counts.
+Returns hub limits, configured devices, command names, keycode/raw flags, and local command counts.
 
 List runnable commands for one device:
 
@@ -44,9 +41,7 @@ Invoke-RestMethod "http://<hub-ip>:8080/api/ir-batch-send" -Method Post -Body @{
 }
 ```
 
-The response includes `sent`, `attempted`, `skipped`, `failed`, `elapsedMs`, and
-`lastReply`. `failed` is incremented when the hub rejects a stored command, so
-large sweeps can keep going while still showing unsupported names clearly.
+The response includes `sent`, `attempted`, `skipped`, `failed`, `elapsedMs`, and `lastReply`. `failed` is incremented when the hub rejects a stored command, so large sweeps can keep going while still showing unsupported names clearly.
 
 Cancel a running batch:
 
@@ -132,10 +127,7 @@ Invoke-RestMethod "http://<hub-ip>:8080/api/bt-text" -Method Post -Body @{
 }
 ```
 
-The unified Bluetooth daemon `/data/codex/bin/codex_btstack` runs automatically and
-handles Classic Bluetooth HID keyboard emulation and BLE remote connectivity. The runtime reads
-`/tmp/bthid_input`, sends exact press/release reports for ASCII text, and uses
-the paired target saved by the Bluetooth controls.
+The unified Bluetooth daemon `/data/codex/bin/codex_btstack` runs automatically and handles Classic Bluetooth HID keyboard emulation and BLE remote connectivity. The runtime reads `/tmp/bthid_input`, sends exact press/release reports for ASCII text, and uses the paired target saved by the Bluetooth controls.
 
 Send a named key or shortcut through the low-level HID report path:
 
@@ -173,20 +165,11 @@ GET /export/bluetooth
 GET /export/remote-mapping
 ```
 
-Exports are for backups and debugging. Do not share files containing local
-network or credential material.
-
-`/export/cloud` returns `1` when the Logitech cloud blocker is enabled and `0`
-when cloud tasks are allowed on the next network start.
+Exports are for backups and debugging. Do not share files containing local network or credential material.
 
 ## Software Updates
 
-The System page can update the local control stack from this repository. The
-browser fetches `payload/bin/MANIFEST.txt` and selected `codex_*` binaries,
-uploads them to the hub in chunks, then the hub verifies MD5 hashes from the
-manifest before installing. The default updater tries the GitHub contents API,
-raw GitHub, and jsDelivr mirrors so public updates still work when one browser
-fetch path is blocked.
+The System page can update the local control stack from this repository. The browser fetches `payload/bin/MANIFEST.txt` and selected `codex_*` binaries, uploads them to the hub in chunks, then the hub verifies MD5 hashes from the manifest before installing. The default updater tries the GitHub contents API, raw GitHub, and jsDelivr mirrors so public updates still work when one browser fetch path is blocked.
 
 Low-level SSH/dropbear files are intentionally not updated by the web UI.
 
@@ -202,20 +185,12 @@ POST /api/update-chunk
 POST /api/update-apply
 ```
 
-The default public GitHub repository is read through GitHub's Contents API and
-works without a token. For a private GitHub repo or fork, paste a GitHub token
-into the System page update field. It is used only by the browser to read GitHub
-and is not sent to or stored on the hub. Change the raw base URL only when using
-a public mirror.
+The default public GitHub repository is read through GitHub's Contents API and works without a token. For a private GitHub repo or fork, paste a GitHub token into the System page update field. It is used only by the browser to read GitHub and is not sent to or stored on the hub. Change the raw base URL only when using a public mirror.
 
 ## Physical Bluetooth Remote
 
-The unified daemon `/data/codex/bin/codex_btstack` connects to a paired BLE remote
-(e.g. Homatics B25 / RTL8762) over BLE GATT/HOGP, auto-encrypts
-the link using BTstack SM/LE-SC pairing, subscribes to HID report CCCDs,
-and decodes button presses from incoming notifications.
-It maps buttons dynamically based on the hub's active activity context (or Off mode `-1`)
-using `/data/codex/bt_remote_map.json`, and dispatches IR, Bluetooth, or MQTT commands directly via hardware drivers (`hw_action.c`).
+The unified daemon `/data/codex/bin/codex_btstack` connects to a paired BLE remote (e.g. Homatics B25 / RTL8762) over BLE GATT/HOGP, auto-encrypts the link using BTstack SM/LE-SC pairing, subscribes to HID report CCCDs, and decodes button presses from incoming notifications.
+It maps buttons dynamically based on the hub's active activity context (or Off mode `-1`) using `/data/codex/bt_remote_map.json`, and dispatches IR, Bluetooth, or MQTT commands directly via hardware drivers (`hw_action.c`).
 
 Endpoints:
 - `GET /api/remote-mapping`: Returns daemon status, connected status, and the JSON mapping configuration.

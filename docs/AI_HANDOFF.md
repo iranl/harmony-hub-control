@@ -11,10 +11,8 @@ already rooted Logitech Harmony Hub.
 
 - This repository is not the rooting tool.
 - Do not add LAN or USB rooting material here.
-- Do not include private keys, tokens, MQTT passwords, Home Assistant tokens,
-  firmware dumps, or hub backups.
-- The web UI intentionally has no HTTP authentication right now. Treat it as a
-  trusted-LAN-only tool.
+- Do not include private keys, tokens, MQTT passwords, Home Assistant tokens, firmware dumps, or hub backups.
+- The web UI intentionally has no HTTP authentication right now. Treat it as a trusted-LAN-only tool.
 - The installer expects root SSH to already work.
 
 ## Main Files
@@ -39,6 +37,8 @@ already rooted Logitech Harmony Hub.
 /data/codex/bin/codex_portal
 /data/codex/init.sh
 /data/codex/recovery_ap.sh
+/data/codex/network_manager.sh
+/data/codex/ethernet.conf
 /data/codex/hub_id
 /data/codexmqtt/config.json
 /usr/sbin/dropbear
@@ -48,23 +48,16 @@ already rooted Logitech Harmony Hub.
 
 ## Current Feature Notes
 
-- IR import sources should stay separate in the UI, with an `All databases`
-  option.
-- Unsupported IR database rows should be visible with enough detail to debug
-  parser coverage.
-- Flipper parsed protocols currently include `RC5`, `RC6`, `SIRC`, `SIRC15`,
-  and `SIRC20` conversion to raw timing.
+- IR import sources should stay separate in the UI, with an `All databases` option.
+- Unsupported IR database rows should be visible with enough detail to debug parser coverage.
+- Flipper parsed protocols currently include `RC5`, `RC6`, `SIRC`, `SIRC15` and `SIRC20` conversion to raw timing.
 - Learned IR signals should be testable before saving.
-- The IR sweep page should favor fast staging in browser memory and hub-side
-  batch sends that can be stopped.
+- The IR sweep page should favor fast staging in browser memory and hub-side batch sends that can be stopped.
 - Bluetooth HID: handled directly by `codex_btstack` reading `/tmp/bthid_input` FIFO.
 - IR sending: direct `/dev/i2s` hardware modulation via `ir_i2s.c` (stock Logitech HAL disabled).
-- MQTT should publish enough state for Home Assistant debugging, including IP
-  address and bridge health.
-- Cloud blocker defaults to enabled. Cloud blocking is implemented via `rcS.local`
-  startup patching which disables cloudapi, PubNub, and package-manager services.
-- Optional HTTP Basic authentication is supported via `/data/codex/webui_auth.conf`
-  with cached in-memory credentials.
+- MQTT should publish enough state for Home Assistant debugging, including IP address and bridge health.
+- Optional HTTP Basic authentication is supported via `/data/codex/webui_auth.conf` with cached in-memory credentials.
+- Network manager (`network_manager.sh`) manages Ethernet (USB host) and Wi-Fi (`ath0`). On boot, always starts USB gadget mode for 15s to allow PC detection (SOF interrupt sampling); switches to USB host/Ethernet if no PC connected and Ethernet enabled. Supports automatic Wi-Fi fallback.
 
 ## Verification Checklist
 
@@ -72,8 +65,7 @@ After changing web UI or runtime behavior:
 
 1. Deploy with `install_webui.ps1` on Windows or `python3 install_webui.py` on Linux/macOS.
 2. Open `http://<hub-ip>:8080/`.
-3. Check Dashboard, IR Devices, IR Sweep, Bluetooth, MQTT, Wi-Fi, Backup, and
-   System sections.
+3. Check Dashboard, IR Devices, IR Sweep, Bluetooth, MQTT, Network (Wi-Fi & Ethernet), Backup, and System sections.
 4. Confirm no browser auth prompt appears.
 5. Import a small IR database file and verify supported/unsupported counts.
 6. Send one known-good IR command.

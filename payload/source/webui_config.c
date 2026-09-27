@@ -11,6 +11,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
+#include <dirent.h>
 #include <time.h>
 #include "cJSON.h"
 #include "codex_webui_types.h"
@@ -198,6 +201,222 @@ int save_wifi(const struct wifi_config *cfg) {
     return 0;
 }
 
+void load_ethernet(struct ethernet_config *cfg) {
+    char raw[4096];
+    memset(cfg, 0, sizeof(*cfg));
+    cfg->enabled = 0;
+    cfg->fallback_wifi = 1;
+    cfg->is_static = 0;
+    if (read_text(ETHERNET_CONFIG, raw, sizeof(raw)) <= 0) return;
+
+    char *saveptr = NULL;
+    char *line = strtok_r(raw, "\r\n", &saveptr);
+    while (line) {
+        while (*line == ' ' || *line == '\t') line++;
+        if (*line != '#' && *line != '\0') {
+            char *eq = strchr(line, '=');
+            if (eq) {
+                *eq = '\0';
+                char *k = line;
+                char *v = eq + 1;
+                while (*v == ' ' || *v == '\t' || *v == '"') v++;
+                char *end = v + strlen(v);
+                while (end > v && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '"' || end[-1] == '\r' || end[-1] == '\n')) {
+                    *(--end) = '\0';
+                }
+                if (strcmp(k, "ETH_ENABLED") == 0) {
+                    cfg->enabled = (atoi(v) == 1);
+                } else if (strcmp(k, "ETH_FALLBACK_WIFI") == 0) {
+                    cfg->fallback_wifi = (atoi(v) == 1);
+                } else if (strcmp(k, "ETH_MODE") == 0) {
+                    cfg->is_static = (strcmp(v, "static") == 0);
+                } else if (strcmp(k, "ETH_IP") == 0) {
+                    strncpy(cfg->ip, v, sizeof(cfg->ip) - 1);
+                } else if (strcmp(k, "ETH_NETMASK") == 0) {
+                    strncpy(cfg->netmask, v, sizeof(cfg->netmask) - 1);
+                } else if (strcmp(k, "ETH_GATEWAY") == 0) {
+                    strncpy(cfg->gateway, v, sizeof(cfg->gateway) - 1);
+                } else if (strcmp(k, "ETH_DNS") == 0) {
+                    strncpy(cfg->dns, v, sizeof(cfg->dns) - 1);
+                }
+            }
+        }
+        line = strtok_r(NULL, "\r\n", &saveptr);
+    }
+}
+
+int save_ethernet(const struct ethernet_config *cfg) {
+    FILE *f = fopen(ETHERNET_CONFIG ".new", "w");
+    if (!f) return -1;
+    fprintf(f, "# Ethernet and USB Host configuration\n");
+    fprintf(f, "ETH_ENABLED=%d\n", cfg->enabled ? 1 : 0);
+    fprintf(f, "ETH_FALLBACK_WIFI=%d\n", cfg->fallback_wifi ? 1 : 0);
+    fprintf(f, "ETH_MODE=%s\n", cfg->is_static ? "static" : "dhcp");
+    fprintf(f, "ETH_IP=\"%s\"\n", cfg->ip);
+    fprintf(f, "ETH_NETMASK=\"%s\"\n", cfg->netmask);
+    fprintf(f, "ETH_GATEWAY=\"%s\"\n", cfg->gateway);
+    fprintf(f, "ETH_DNS=\"%s\"\n", cfg->dns);
+    fclose(f);
+    chmod(ETHERNET_CONFIG ".new", 0644);
+    if (rename(ETHERNET_CONFIG ".new", ETHERNET_CONFIG) != 0) return -1;
+    chmod(ETHERNET_CONFIG, 0644);
+    sync();
+    return 0;
+}
+
+void get_network_status(struct network_status *st) {
+    memset(st, 0, sizeof(*st));
+    strcpy(st->active_interface, "none");
+    strcpy(st->connection_type, "Disconnected");
+
+    /* Check modules to determine USB mode */
+    char mods[4096];
+    if (read_text("/proc/modules", mods, sizeof(mods)) > 0) {
+        if (strstr(mods, "ehci_hcd") != NULL) {
+            st->usb_host_mode = 1;
+        } else if (strstr(mods, "ath_udc") != NULL) {
+            st->usb_host_mode = 0;
+        }
+    }
+
+    /* Check if PC is connected in gadget mode */
+    if (!st->usb_host_mode) {
+        char sbuf[64];
+        if ((read_text("/sys/devices/platform/ath_udc.0/state", sbuf, sizeof(sbuf)) > 0 ||
+             read_text("/sys/devices/platform/ath_udc/state", sbuf, sizeof(sbuf)) > 0) &&
+            (strstr(sbuf, "configured") != NULL || strstr(sbuf, "addressed") != NULL)) {
+            st->usb_pc_connected = 1;
+        }
+    }
+
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+
+    /* Check Ethernet interfaces ONLY when USB host mode is active.
+     * Ignore internal SoC eth0 (ag71xx platform device without physical port). */
+    if (st->usb_host_mode) {
+        DIR *dir = opendir("/sys/class/net");
+        if (dir) {
+            struct dirent *de;
+            while ((de = readdir(dir)) != NULL) {
+                if (de->d_name[0] == '.') continue;
+                if (strcmp(de->d_name, "lo") == 0 ||
+                    strncmp(de->d_name, "ath", 3) == 0 ||
+                    strncmp(de->d_name, "wifi", 4) == 0) continue;
+
+                /* Must be backed by a USB device */
+                char devpath[256], target[512];
+                snprintf(devpath, sizeof(devpath), "/sys/class/net/%s/device", de->d_name);
+                ssize_t len = readlink(devpath, target, sizeof(target) - 1);
+                if (len <= 0) continue;
+                target[len] = '\0';
+                if (strstr(target, "usb") == NULL && strstr(target, "ehci") == NULL) {
+                    continue; /* Internal platform device, not USB ethernet */
+                }
+
+                st->eth_present = 1;
+                strncpy(st->eth_ifname, de->d_name, sizeof(st->eth_ifname) - 1);
+
+                st->eth_carrier = 0;
+                char cpath[256], cbuf[16];
+                snprintf(cpath, sizeof(cpath), "/sys/class/net/%s/carrier", de->d_name);
+                if (read_text(cpath, cbuf, sizeof(cbuf)) > 0 && cbuf[0] == '1') {
+                    st->eth_carrier = 1;
+                }
+
+                if (sock >= 0) {
+                    struct ifreq ifr;
+                    memset(&ifr, 0, sizeof(ifr));
+                    strncpy(ifr.ifr_name, de->d_name, IFNAMSIZ - 1);
+                    if (ioctl(sock, SIOCGIFADDR, &ifr) == 0) {
+                        struct sockaddr_in *sin = (struct sockaddr_in *)&ifr.ifr_addr;
+                        strncpy(st->eth_ip, inet_ntoa(sin->sin_addr), sizeof(st->eth_ip) - 1);
+                    }
+                }
+                break;
+            }
+            closedir(dir);
+        }
+    }
+
+    /* Check Wi-Fi interface (ath0) */
+    if (access("/sys/class/net/ath0", F_OK) == 0) {
+        struct wifi_config wcfg;
+        load_wifi(&wcfg);
+        strncpy(st->wifi_ssid, wcfg.ssid, sizeof(st->wifi_ssid) - 1);
+        if (sock >= 0) {
+            struct ifreq ifr;
+            memset(&ifr, 0, sizeof(ifr));
+            strncpy(ifr.ifr_name, "ath0", IFNAMSIZ - 1);
+            if (ioctl(sock, SIOCGIFADDR, &ifr) == 0) {
+                struct sockaddr_in *sin = (struct sockaddr_in *)&ifr.ifr_addr;
+                strncpy(st->wifi_ip, inet_ntoa(sin->sin_addr), sizeof(st->wifi_ip) - 1);
+                st->wifi_connected = (st->wifi_ip[0] != '\0');
+            }
+        }
+    }
+
+    /* Read default route from /proc/net/route */
+    FILE *rf = fopen("/proc/net/route", "r");
+    if (rf) {
+        char line[256];
+        if (fgets(line, sizeof(line), rf)) {
+            while (fgets(line, sizeof(line), rf)) {
+                char iface[32];
+                unsigned long dest = 0, gw = 0;
+                if (sscanf(line, "%31s %lx %lx", iface, &dest, &gw) >= 3) {
+                    if (dest == 0) {
+                        strncpy(st->active_interface, iface, sizeof(st->active_interface) - 1);
+                        struct in_addr gw_addr;
+                        gw_addr.s_addr = (in_addr_t)gw;
+                        strncpy(st->gateway, inet_ntoa(gw_addr), sizeof(st->gateway) - 1);
+                        break;
+                    }
+                }
+            }
+        }
+        fclose(rf);
+    }
+
+    if (strcmp(st->active_interface, "none") == 0) {
+        if (st->eth_present && st->eth_ip[0]) {
+            strncpy(st->active_interface, st->eth_ifname, sizeof(st->active_interface) - 1);
+        } else if (st->wifi_ip[0]) {
+            strcpy(st->active_interface, "ath0");
+        }
+    }
+
+    if (sock >= 0 && strcmp(st->active_interface, "none") != 0) {
+        struct ifreq ifr;
+        memset(&ifr, 0, sizeof(ifr));
+        strncpy(ifr.ifr_name, st->active_interface, IFNAMSIZ - 1);
+        if (ioctl(sock, SIOCGIFADDR, &ifr) == 0) {
+            struct sockaddr_in *sin = (struct sockaddr_in *)&ifr.ifr_addr;
+            strncpy(st->ip, inet_ntoa(sin->sin_addr), sizeof(st->ip) - 1);
+        }
+        if (ioctl(sock, SIOCGIFNETMASK, &ifr) == 0) {
+            struct sockaddr_in *sin = (struct sockaddr_in *)&ifr.ifr_addr;
+            strncpy(st->netmask, inet_ntoa(sin->sin_addr), sizeof(st->netmask) - 1);
+        }
+        if (ioctl(sock, SIOCGIFHWADDR, &ifr) == 0) {
+            unsigned char *mac = (unsigned char *)ifr.ifr_hwaddr.sa_data;
+            snprintf(st->mac, sizeof(st->mac), "%02x:%02x:%02x:%02x:%02x:%02x",
+                     mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        }
+    }
+    if (sock >= 0) close(sock);
+
+    if (st->eth_present && (strncmp(st->active_interface, "eth", 3) == 0 || strncmp(st->active_interface, "usb", 3) == 0)) {
+        strcpy(st->connection_type, "Ethernet");
+    } else if (strcmp(st->active_interface, "ath0") == 0) {
+        char state[128];
+        if (read_text("/tmp/codex_active_net_state", state, sizeof(state)) > 0 && strstr(state, "wifi-fallback")) {
+            strcpy(st->connection_type, "Wi-Fi (Fallback)");
+        } else {
+            strcpy(st->connection_type, "Wi-Fi");
+        }
+    }
+}
+
 int load_hub_id(char *hub_id, size_t hub_id_len) {
     size_t i, n;
     if (!hub_id || hub_id_len == 0) return 0;
@@ -368,6 +587,7 @@ void send_bundle_download(int fd) {
         {"ActivityList.json", ACTIVITY_LIST},
         {"mqtt-config.json", MQTT_CONFIG},
         {"wpa_supplicant.conf", WPA_CONFIG},
+        {"ethernet.conf", ETHERNET_CONFIG},
         {"bt-devices.json", BT_DEVICE_STORE},
         {"bt_remote_map.json", BT_REMOTE_MAP_FILE},
         {"hub_id", HUB_ID_FILE},
@@ -496,6 +716,42 @@ void handle_wifi(int fd, const struct request *req) {
     }
 }
 
+void handle_ethernet(int fd, const struct request *req) {
+    struct ethernet_config old, cfg;
+    char apply[32], mode[32];
+    load_ethernet(&old);
+    cfg = old;
+    cfg.enabled = form_checked(req->body, "eth_enabled");
+    cfg.fallback_wifi = form_checked(req->body, "eth_fallback_wifi");
+    form_value(req->body, "eth_mode", mode, sizeof(mode));
+    cfg.is_static = (strcmp(mode, "static") == 0);
+    form_value(req->body, "eth_ip", cfg.ip, sizeof(cfg.ip));
+    form_value(req->body, "eth_netmask", cfg.netmask, sizeof(cfg.netmask));
+    form_value(req->body, "eth_gateway", cfg.gateway, sizeof(cfg.gateway));
+    form_value(req->body, "eth_dns", cfg.dns, sizeof(cfg.dns));
+
+    if (cfg.is_static && !cfg.ip[0]) {
+        render_page(fd, req, "Static IP address is required when Static mode is selected.");
+        return;
+    }
+    if (save_ethernet(&cfg) != 0) {
+        render_page(fd, req, "Failed to save Ethernet settings.");
+        return;
+    }
+
+    form_value(req->body, "apply", apply, sizeof(apply));
+    if (strcmp(apply, "reboot") == 0) {
+        render_page(fd, req, "Ethernet settings saved. Rebooting hub now...");
+        sync();
+        system("/sbin/reboot >/dev/null 2>&1 &");
+    } else if (strcmp(apply, "apply") == 0 || strcmp(apply, "reconfigure") == 0) {
+        render_page(fd, req, "Ethernet settings saved and applied.");
+        system("/data/codex/network_manager.sh apply >/dev/null 2>&1 &");
+    } else {
+        render_page(fd, req, "Ethernet settings saved. Reboot when ready to use them.");
+    }
+}
+
 void handle_system(int fd, const struct request *req) {
     char action[64];
     form_value(req->body, "action", action, sizeof(action));
@@ -577,6 +833,7 @@ static const char *import_path_for_target(const char *target) {
     if (strcmp(target, "activities") == 0) return ACTIVITY_LIST;
     if (strcmp(target, "mqtt") == 0) return MQTT_CONFIG;
     if (strcmp(target, "wifi") == 0) return WPA_CONFIG;
+    if (strcmp(target, "ethernet") == 0 || strcmp(target, "network") == 0) return ETHERNET_CONFIG;
     if (strcmp(target, "bluetooth") == 0) return BT_DEVICE_STORE;
     if (strcmp(target, "remote-mapping") == 0 || strcmp(target, "remotemap") == 0) return BT_REMOTE_MAP_FILE;
     if (strcmp(target, "auth") == 0) return WEBUI_AUTH_CONFIG;
@@ -592,6 +849,7 @@ static const char *import_label_for_target(const char *target) {
     if (strcmp(target, "activities") == 0) return "ActivityList.json";
     if (strcmp(target, "mqtt") == 0) return "MQTT config";
     if (strcmp(target, "wifi") == 0) return "Wi-Fi config";
+    if (strcmp(target, "ethernet") == 0 || strcmp(target, "network") == 0) return "Ethernet config";
     if (strcmp(target, "bluetooth") == 0) return "Bluetooth devices";
     if (strcmp(target, "remote-mapping") == 0 || strcmp(target, "remotemap") == 0) return "bt_remote_map.json";
     if (strcmp(target, "auth") == 0) return "WebUI auth config";
@@ -612,6 +870,11 @@ static int validate_import_payload(const char *target, const char *payload, char
     if (strcmp(target, "wifi") == 0) {
         if (strstr(payload, "network={") && strstr(payload, "ssid=")) return 0;
         snprintf(msg, msglen, "Wi-Fi import must look like a wpa_supplicant config with a network block and ssid.");
+        return -1;
+    }
+    if (strcmp(target, "ethernet") == 0 || strcmp(target, "network") == 0) {
+        if (strstr(payload, "ETH_ENABLED") || strstr(payload, "ETH_MODE")) return 0;
+        snprintf(msg, msglen, "Ethernet import must contain ETH_ENABLED or ETH_MODE.");
         return -1;
     }
     if (strcmp(target, "auth") == 0) {
@@ -758,6 +1021,11 @@ static void handle_import_bundle(int fd, const struct request *req, const char *
     if (wifi && wifi[0]) {
         write_file_atomic(WPA_CONFIG, wifi, strlen(wifi));
         chmod(WPA_CONFIG, 0600);
+    }
+    const char *ethernet = bundle_get_string(root, "ethernet.conf");
+    if (ethernet && ethernet[0]) {
+        write_file_atomic(ETHERNET_CONFIG, ethernet, strlen(ethernet));
+        chmod(ETHERNET_CONFIG, 0644);
     }
     if (bluetooth && bluetooth[0]) {
         write_file_atomic(BT_DEVICE_STORE, bluetooth, strlen(bluetooth));

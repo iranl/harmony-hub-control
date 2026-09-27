@@ -2,26 +2,19 @@
 
 Local web UI and helper runtime for an already rooted Logitech Harmony Hub.
 
-This repository is for post-root device ownership work: the web dashboard, IR
-database tooling, Bluetooth HID controls, MQTT/Home Assistant bridge, recovery
-AP helpers, and the installer that deploys those pieces over SSH.
+This repository is for post-root device ownership work: the web dashboard, IR database tooling, Bluetooth HID controls, MQTT/Home Assistant bridge, recovery AP helpers, and the installer that deploys those pieces over SSH.
 
-It does not contain rooting tools, device compromise notes, private keys, live
-MQTT credentials, firmware dumps, or personal backups.
+It does not contain rooting tools, device compromise notes, private keys, live MQTT credentials, firmware dumps, or personal backups.
 
 ## Current Status
 
 - Web UI runs on `http://<hub-ip>:8080/`.
-- HTTP authentication is intentionally disabled for LAN-only use.
+- HTTP authentication can be configured using the WebUI.
 - IR devices can be configured from database lookup or manual learning.
-- Database import supports IRDB, Flipper-IRDB, and RemoteCentral-style Pronto
-  sources.
-- Flipper parsed `RC5`, `RC6`, `SIRC`, `SIRC15`, and `SIRC20` entries are
-  converted to raw timing replays when possible.
-- The IR sweep page can stage large command sets in browser memory, import
-  selected commands to the hub, and send them in cancellable batches.
-- Bluetooth HID mode can expose the hub as a keyboard-class device and send
-  keystroke scripts through the auto-started hub-side FIFO runtime.
+- Database import supports IRDB, Flipper-IRDB, and RemoteCentral-style Pronto sources.
+- Flipper parsed `RC5`, `RC6`, `SIRC`, `SIRC15`, and `SIRC20` entries are converted to raw timing replays when possible.
+- The IR sweep page can stage large command sets in browser memory, import selected commands to the hub, and send them in cancellable batches.
+- Bluetooth HID mode can expose the hub as a keyboard-class device and send keystroke scripts through the auto-started hub-side FIFO runtime.
 - MQTT bridge publishes Home Assistant discovery and exposes hub/device state.
 - Recovery helpers can start a local AP workflow from the reset button path.
 
@@ -63,31 +56,12 @@ No build server is required to install the current payload.
 
 ## Quick Install
 
-Run after the hub has just been rooted with the LAN root tool. The installer
-uses your Harmony SSH key. It looks in `.ssh` for a private key whose filename
-starts with `harmony_owner_`:
+Run after the hub has just been rooted with the LAN root tool. The installer uses your Harmony SSH key. It looks in `.ssh` for a private key whose filename starts with `harmony_owner_`:
 
 ```text
 %USERPROFILE%\.ssh\harmony_owner_*
 ~/.ssh/harmony_owner_*
 ```
-
-The installer also needs the real numeric Harmony Hub ID. If you rooted the hub with `harmony-hub-root`, this is read
-automatically from the handoff file under `.harmony-hub`. If the handoff file is
-missing, pass the exact value printed by the root tool as `hub_id=...`:
-
-```powershell
-.\install_webui.ps1 -HubHost <hub-ip> -HubId <numeric-id>
-```
-
-```bash
-python3 install_webui.py --hub-host <hub-ip> --hub-id <numeric-id>
-```
-
-Do not use a guessed Hub ID; hub identification and configuration depend
-on the real value. The installer does not prompt for a Hub ID interactively,
-because guessed numeric values are accepted by the shell but fail against the
-hub.
 
 ### Windows
 
@@ -97,13 +71,10 @@ Double-click:
 Install_Harmony_Control.cmd
 ```
 
-Enter the hub IP address when prompted. The installer also prompts for MQTT
-broker settings; leave the broker blank to install the UI with MQTT disabled for
-now.
+Enter the hub IP address when prompted. The installer also prompts for MQTT broker settings;
 
 The installer uses only plain `ssh` and remote `cat` over stdin to copy files.
-It does not require `scp`, `sftp`, or `tftp`, which are not available in the
-minimal Dropbear SSH environment installed by the root tool.
+It does not require `scp`, `sftp`, or `tftp`, which are not available in the minimal Dropbear SSH environment installed by the root tool.
 
 PowerShell can also be run directly:
 
@@ -125,18 +96,7 @@ For a non-interactive install with MQTT disabled:
 python3 install_webui.py --hub-host <hub-ip> --key-path ~/.ssh/harmony_owner_<key-name> --mqtt-disabled --no-prompt
 ```
 
-The installer will prompt for missing values, create a backup on the hub, upload
-the runtime, start Dropbear if needed, start the web UI, and write MQTT config
-if provided.
-
-By default the installer patches the hub startup scripts to block Logitech
-cloudapi, PubNub, and package-manager background tasks while local web, MQTT,
-Bluetooth, Wi-Fi recovery, and SSH control continue to work. A reboot can be
-issued after install to ensure all network startup patches are applied cleanly:
-
-```powershell
-ssh -i "$env:USERPROFILE\.ssh\<root-key-file>" root@<hub-ip> "reboot"
-```
+The installer will prompt for missing values, create a backup, upload the runtime, start Dropbear if needed, start the web UI, and write MQTT config if provided.
 
 Open the UI afterward:
 
@@ -163,8 +123,7 @@ Keep changes scoped and reviewable:
 5. Install to a test hub with `install_webui.ps1` on Windows or `install_webui.py` on Linux/macOS.
 6. Verify the dashboard, IR import, Bluetooth HID, MQTT, and rollback paths.
 
-Do not commit local secrets, hub backups, firmware dumps, root tooling, or
-credentials. See `docs/SECURITY.md` before sharing the repository.
+Do not commit local secrets, hub backups, firmware dumps, root tooling, or credentials. See `docs/SECURITY.md` before sharing the repository.
 
 For script and integration control, see `docs/API.md`.
 
