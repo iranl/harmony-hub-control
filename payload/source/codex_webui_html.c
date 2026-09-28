@@ -1,6 +1,5 @@
 /* codex_webui_html.c - HTML page rendering for the web UI.
- * Extracted from codex_webui.c for readability.
- * Included via #include from codex_webui.c; do not compile separately. */
+ * Included via #include from webui_server.c; do not compile separately. */
 
 static void page_head(FILE *f, const char *title) {
     fprintf(f,

@@ -116,7 +116,7 @@ Restore the newest backup created by the installer:
 
 Keep changes scoped and reviewable:
 
-1. Edit `payload/source/codex_webui.c` or the relevant payload script/plugin.
+1. Edit `payload/source/codex_daemon.c`, `webui_server.c`, or the relevant payload source/script.
 2. Rebuild MIPS binaries only when native source changes.
 3. Replace the corresponding file under `payload/bin/`.
 4. Update `payload/bin/MANIFEST.txt`.
@@ -138,7 +138,7 @@ Invoke-WebRequest -Uri "http://<hub-ip>:8080/" -UseBasicParsing
 Process and checksum check:
 
 ```powershell
-ssh -i "$env:USERPROFILE\.ssh\<root-key-file>" root@<hub-ip> "ps | grep '[c]odex_webui'; ps | grep '[c]odex_daemon'; ps | grep '[c]odex_btstack'; ps | grep '[d]ropbear'; md5sum /data/codex/bin/codex_webui"
+ssh -i "$env:USERPROFILE\.ssh\<root-key-file>" root@<hub-ip> "ps | grep '[c]odex_daemon'; ps | grep '[c]odex_btstack'; ps | grep '[d]ropbear'; md5sum /data/codex/bin/codex_daemon"
 ```
 
 Logs:

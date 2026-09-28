@@ -17,8 +17,8 @@ already rooted Logitech Harmony Hub.
 
 ## Main Files
 
-- `payload/source/codex_webui.c`: single-binary web server and front-end assets (port 8080).
-- `payload/source/codex_daemon.c`: core orchestrator, MQTT client, WebSocket, and HTTP daemon (port 8089).
+- `payload/source/codex_daemon.c`: unified daemon orchestrating WebUI (port 8080), WebSocket (port 8089), MQTT, IR capture/tx, and system services.
+- `payload/source/webui_server.c`: non-blocking select()-based WebUI HTTP server module running inside codex_daemon.
 - `payload/source/codex_btstack/`: BTstack BLE remote daemon and HID keyboard/consumer input engine.
 - `payload/scripts/init.sh`: hub boot startup for local services.
 - `payload/scripts/recovery_ap.sh`: reset-button recovery AP flow.
@@ -29,7 +29,6 @@ already rooted Logitech Harmony Hub.
 ## Runtime Paths On Hub
 
 ```text
-/data/codex/bin/codex_webui
 /data/codex/bin/codex_daemon
 /data/codex/bin/codex_btstack
 /data/codex/bin/codex_sntp

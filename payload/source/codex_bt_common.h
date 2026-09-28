@@ -1,9 +1,8 @@
 /*
  * codex_bt_common.h — Shared Bluetooth utility functions.
  *
- * Included by codex_webui.c, codex_bthid_keyboard.c, and
- * codex_bthid_remote.c.  All functions are static inline so each
- * translation unit gets its own copy — no linker dependency.
+ * Included by webui_bt.c and Bluetooth modules.  All functions are
+ * static inline so each translation unit gets its own copy — no linker dependency.
  */
 #ifndef CODEX_BT_COMMON_H
 #define CODEX_BT_COMMON_H

@@ -1,6 +1,6 @@
 /**
  * Harmony Hub Client API
- * Direct network communication with codex_webui HTTP API.
+ * Direct network communication with codex_daemon HTTP API.
  * Supports HTTP Basic Authentication and CORS.
  */
 

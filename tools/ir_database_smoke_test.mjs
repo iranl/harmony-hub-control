@@ -62,13 +62,13 @@ function pickMany(items, count) {
 
 function loadWebuiParser() {
   if (webuiParseIrText) return webuiParseIrText;
-  const sourcePath = pathModule.join(__dirname, '..', 'payload', 'source', 'codex_webui.c');
+  const sourcePath = pathModule.join(__dirname, '..', 'payload', 'source', 'codex_webui_html.c');
   const c = fs.readFileSync(sourcePath, 'utf8');
   const script = [...c.matchAll(/^\s*"((?:\\.|[^"\\])*)"\s*$/gm)]
     .map((m) => JSON.parse(`"${m[1]}"`))
     .join('');
   const start = script.indexOf('const IRDB_BASE');
-  const end = script.indexOf('async function postJson');
+  const end = script.indexOf('async function jsonOk');
   if (start < 0 || end < 0) throw new Error('could not extract web UI IR parser');
   const context = {
     console,

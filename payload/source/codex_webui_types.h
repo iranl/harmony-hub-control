@@ -1,5 +1,5 @@
-/* codex_webui_types.h - Defines, constants, and struct declarations.
- * Extracted from codex_webui.c for readability. Included only by codex_webui.c. */
+/* codex_webui_types.h - Defines, constants, and struct declarations
+ * used by webui_server.c and associated webui_* modules. */
 #ifndef CODEX_WEBUI_TYPES_H
 #define CODEX_WEBUI_TYPES_H
 

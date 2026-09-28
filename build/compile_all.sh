@@ -29,23 +29,6 @@ build_portal() {
     "$CC" $CFLAGS -o "$BIN/codex_portal" payload/source/codex_portal.c
 }
 
-build_webui() {
-    echo "[-] Building codex_webui..."
-    "$CC" $CFLAGS -Ipayload/source -o "$BIN/codex_webui" \
-        payload/source/codex_webui.c \
-        payload/source/webui_utils.c \
-        payload/source/webui_ir.c \
-        payload/source/webui_activity.c \
-        payload/source/webui_bt.c \
-        payload/source/webui_update.c \
-        payload/source/webui_config.c \
-        payload/source/resource_cache.c \
-        payload/source/cJSON.c \
-        payload/source/hw_action.c \
-        payload/source/ir_encoder.c \
-        payload/source/ir_i2s.c -lm
-}
-
 build_sntp() {
     echo "[-] Building codex_sntp..."
     "$CC" $CFLAGS -Ipayload/source -o "$BIN/codex_sntp" payload/source/codex_sntp_main.c payload/source/codex_ntp.c
@@ -98,9 +81,6 @@ case "$TARGET" in
     daemon)
         build_daemon
         ;;
-    webui)
-        build_webui
-        ;;
     sntp)
         build_sntp
         ;;
@@ -134,7 +114,7 @@ case "$TARGET" in
         ;;
     *)
         echo "Unknown target: $TARGET"
-        echo "Usage: $0 [all|daemon|webui|sntp|portal|dhcpd|btstack|register_ehci|mknod|check_space]"
+        echo "Usage: $0 [all|daemon|sntp|portal|dhcpd|btstack|register_ehci|mknod|check_space]"
         exit 1
         ;;
 esac
