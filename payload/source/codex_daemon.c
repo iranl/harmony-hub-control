@@ -843,10 +843,26 @@ static void handle_mqtt_activity_set(const char *payload) {
 
     printf("[*] MQTT request: switch to activity '%s'\n", start);
 
+    static time_t s_last_activity_cmd_time = 0;
+    static char s_last_activity_cmd[64] = {0};
+
+    time_t now = time(NULL);
+    if (strcmp(start, s_last_activity_cmd) == 0 && (now - s_last_activity_cmd_time) < 2) {
+        printf("[!] MQTT: duplicate activity '%s' received within %ld sec; dropping\n",
+               start, (long)(now - s_last_activity_cmd_time));
+        return;
+    }
+    s_last_activity_cmd_time = now;
+    snprintf(s_last_activity_cmd, sizeof(s_last_activity_cmd), "%s", start);
+
     if (strcmp(start, "PowerOff") == 0 || strcasecmp(start, "poweroff") == 0 ||
         strcmp(start, "-1") == 0 || strcasecmp(start, "off") == 0 || strcmp(start, "0") == 0) {
-        orch_power_off(0, NULL, 0);
-        publish_mqtt_state();
+        int rc = orch_power_off(0, NULL, 0);
+        if (rc == -2) {
+            printf("[!] MQTT: transition already in progress, PowerOff request dropped\n");
+        } else {
+            publish_mqtt_state();
+        }
         return;
     }
 
@@ -874,8 +890,12 @@ static void handle_mqtt_activity_set(const char *payload) {
     }
 
     printf("[+] MQTT validated activity '%s' -> ID %s, starting...\n", start, target_id);
-    orch_switch_activity(target_id, 0, NULL, 0);
-    publish_mqtt_state();
+    int rc = orch_switch_activity(target_id, 0, NULL, 0);
+    if (rc == -2) {
+        printf("[!] MQTT: transition already in progress, switch request dropped\n");
+    } else {
+        publish_mqtt_state();
+    }
 }
 
 static void handle_mqtt_send_command(const char *payload) {

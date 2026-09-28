@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/file.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -13,6 +14,27 @@
 #include <signal.h>
 
 #define I2S_DEVICE "/dev/i2s"
+#define I2S_LOCK_FILE "/tmp/codex_i2s.lock"
+
+static int i2s_lock_acquire(void) {
+    int lfd = open(I2S_LOCK_FILE, O_RDWR | O_CREAT, 0666);
+    if (lfd < 0) return -1;
+    for (int i = 0; i < 50; i++) {
+        if (flock(lfd, LOCK_EX | LOCK_NB) == 0) {
+            return lfd;
+        }
+        usleep(100000);
+    }
+    close(lfd);
+    return -1;
+}
+
+static void i2s_lock_release(int lfd) {
+    if (lfd >= 0) {
+        flock(lfd, LOCK_UN);
+        close(lfd);
+    }
+}
 
 static volatile sig_atomic_t g_i2s_timeout = 0;
 static void i2s_alarm_handler(int sig) {
@@ -134,19 +156,26 @@ int ir_i2s_blast_words(uint32_t carrier_hz, uint8_t duty,
         }
     }
 
+    /* Append trailing silence (idle level) to guarantee DMA FIFO flushes on quiet level */
+    bs_push_bits(&bs, 0, spp * 500);
     bs_finish(&bs);
+
+    int lock_fd = i2s_lock_acquire();
+    if (lock_fd < 0) {
+        free(bs.buf);
+        return -EBUSY;
+    }
 
     int fd = open(I2S_DEVICE, O_WRONLY);
     if (fd < 0) {
+        i2s_lock_release(lock_fd);
         free(bs.buf);
         return -3;
     }
 
-    if (ioctl(fd, I2S_DSIZE, 16) < 0 ||
-        ioctl(fd, I2S_MODE, 2) < 0 ||
-        ioctl(fd, I2S_VOLUME, 15) < 0 ||
-        ioctl(fd, I2S_FREQ, (int)stereo_clk) < 0) {
+    if (ioctl(fd, I2S_FREQ, (int)stereo_clk) < 0) {
         close(fd);
+        i2s_lock_release(lock_fd);
         free(bs.buf);
         return -4;
     }
@@ -163,6 +192,7 @@ int ir_i2s_blast_words(uint32_t carrier_hz, uint8_t duty,
         alarm(0);
         sigaction(SIGALRM, &sa_old, NULL);
         close(fd);
+        i2s_lock_release(lock_fd);
         free(bs.buf);
         return -5;
     }
@@ -175,6 +205,7 @@ int ir_i2s_blast_words(uint32_t carrier_hz, uint8_t duty,
         alarm(0);
         sigaction(SIGALRM, &sa_old, NULL);
         close(fd);
+        i2s_lock_release(lock_fd);
         free(bs.buf);
         return -6;
     }
@@ -182,10 +213,17 @@ int ir_i2s_blast_words(uint32_t carrier_hz, uint8_t duty,
     /* Wait for DMA transmission to finish (matches HAL hornet_i2s_write_complete) */
     ioctl(fd, I2S_DRAIN, 0);
 
+    /* Allow hardware serializer FIFO to completely shift out final silent samples */
+    usleep(25000);
+
+    /* Explicitly halt DMA engine (ath_i2s_dma_pause) so hardware controller cannot access memory */
+    ioctl(fd, 0x80044e27, 0);
+
     alarm(0);
     sigaction(SIGALRM, &sa_old, NULL);
 
     close(fd);
+    i2s_lock_release(lock_fd);
     free(bs.buf);
     return g_i2s_timeout ? -ETIMEDOUT : 0;
 }
@@ -200,14 +238,21 @@ int ir_i2s_blast_blob(const uint8_t *blob, size_t blob_len, uint8_t port_mask) {
                          ((uint32_t)blob[4]);
     uint8_t duty = blob[5];
     uint16_t pre_silence_us = ((uint16_t)blob[6] << 8) | (uint16_t)blob[7];
+    uint16_t start_loc = ((uint16_t)blob[10] << 8) | (uint16_t)blob[11];
+    if (start_loc < 16 || start_loc + 2 > blob_len) start_loc = 16;
+    uint16_t word_count = ((uint16_t)blob[start_loc] << 8) | (uint16_t)blob[start_loc + 1];
+
+    size_t words_offset = start_loc + 2;
+    if (words_offset >= blob_len) return -2;
+
+    size_t actual_words = (blob_len - words_offset) / 2;
+    if (word_count > 0 && word_count < actual_words) actual_words = word_count;
+    if (actual_words == 0) return -2;
 
     uint32_t carrier_hz = period_ns ? (1000000000U / period_ns) : 38000;
     if (duty < 1 || duty > 50) duty = 50;
 
-    size_t num_words = (blob_len - 16) / 2;
-    if (num_words == 0) return -2;
-
-    uint16_t *words = (uint16_t *)malloc((num_words + 1) * sizeof(uint16_t));
+    uint16_t *words = (uint16_t *)malloc((actual_words + 3) * sizeof(uint16_t));
     if (!words) return -3;
 
     size_t w_idx = 0;
@@ -215,10 +260,15 @@ int ir_i2s_blast_blob(const uint8_t *blob, size_t blob_len, uint8_t port_mask) {
         words[w_idx++] = (pre_silence_us & 0x7FFF); /* Space */
     }
 
-    for (size_t i = 0; i < num_words; i++) {
-        size_t off = 16 + (i * 2);
+    for (size_t i = 0; i < actual_words; i++) {
+        size_t off = words_offset + (i * 2);
         uint16_t w = ((uint16_t)blob[off] << 8) | (uint16_t)blob[off + 1];
         words[w_idx++] = w;
+    }
+
+    /* Ensure waveform terminates with silence so carrier ceases */
+    if (w_idx > 0 && (words[w_idx - 1] & 0x8000)) {
+        words[w_idx++] = (45000 & 0x7FFF); /* Trailing space: 45ms */
     }
 
     int rc = ir_i2s_blast_words(carrier_hz, duty, words, w_idx, port_mask);
@@ -231,12 +281,19 @@ int ir_i2s_capture(char *out, size_t outlen, unsigned int timeout_sec) {
     out[0] = '\0';
     if (timeout_sec == 0) timeout_sec = 5;
 
+    int lock_fd = i2s_lock_acquire();
+    if (lock_fd < 0) {
+        snprintf(out, outlen, "I2S hardware is busy (locked)");
+        return -EBUSY;
+    }
+
     int fd = open(I2S_DEVICE, O_RDONLY | O_NONBLOCK);
     if (fd < 0) {
         fd = open(I2S_DEVICE, O_RDONLY);
     }
     if (fd < 0) {
         snprintf(out, outlen, "Failed to open " I2S_DEVICE ": %s", strerror(errno));
+        i2s_lock_release(lock_fd);
         return -2;
     }
 
@@ -246,6 +303,7 @@ int ir_i2s_capture(char *out, size_t outlen, unsigned int timeout_sec) {
         ioctl(fd, I2S_FREQ, I2S_FREQ_CAP) < 0) {
         snprintf(out, outlen, "Failed to configure I2S RX ioctls: %s", strerror(errno));
         close(fd);
+        i2s_lock_release(lock_fd);
         return -3;
     }
 
@@ -256,6 +314,7 @@ int ir_i2s_capture(char *out, size_t outlen, unsigned int timeout_sec) {
     uint8_t *raw_buf = (uint8_t *)malloc(cap);
     if (!raw_buf) {
         close(fd);
+        i2s_lock_release(lock_fd);
         snprintf(out, outlen, "Out of memory allocating capture buffer");
         return -4;
     }
@@ -273,6 +332,7 @@ int ir_i2s_capture(char *out, size_t outlen, unsigned int timeout_sec) {
 
         if (!active && elapsed_ms >= (long)timeout_sec * 1000) {
             close(fd);
+            i2s_lock_release(lock_fd);
             free(raw_buf);
             snprintf(out, outlen, "No IR signal received: timeout waiting for remote button press");
             return -5;
@@ -334,6 +394,7 @@ int ir_i2s_capture(char *out, size_t outlen, unsigned int timeout_sec) {
     }
 
     close(fd);
+    i2s_lock_release(lock_fd);
 
     if (raw_len == 0) {
         free(raw_buf);

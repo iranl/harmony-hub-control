@@ -258,6 +258,11 @@ int ir_encode_raw(uint32_t freq_hz, const uint32_t *timings_us, size_t count,
         int w = bb_append_duration(&bb, timings_us[i], is_pulse);
         if (w > 0) word_count += (uint16_t)w;
     }
+    if (count % 2 != 0) {
+        /* Ends on pulse - append trailing silence to return IR line to idle level */
+        int w = bb_append_duration(&bb, 40000, 0);
+        if (w > 0) word_count += (uint16_t)w;
+    }
 
     write_be16(&bb.data[start_loc], word_count);
 
@@ -430,6 +435,7 @@ int ir_encode_harmony_keycode(const char *keycode, uint8_t min_repeats,
             }
         }
         timings[timing_count++] = 560;
+        timings[timing_count++] = 45000; /* Trailing space: 45ms gap */
     } else if (strstr(proto, "Roku 32 Bit 1") || strcasecmp(proto, "Roku 32 Bit 1") == 0) {
         carrier_hz = 38000;
         timings[timing_count++] = 9000;
@@ -450,6 +456,7 @@ int ir_encode_harmony_keycode(const char *keycode, uint8_t min_repeats,
             }
         }
         timings[timing_count++] = 562;
+        timings[timing_count++] = 40000; /* Trailing space: 40ms gap */
     } else if (strstr(proto, "Sony") || strcasecmp(proto, "Sony") == 0) {
         carrier_hz = 40000;
         timings[timing_count++] = 2400;
@@ -469,6 +476,7 @@ int ir_encode_harmony_keycode(const char *keycode, uint8_t min_repeats,
                 timings[timing_count++] = 600;
             }
         }
+        timings[timing_count++] = 25000; /* Trailing space: 25ms gap */
     } else if (strstr(proto, "RC5") || strcasecmp(proto, "RC5") == 0) {
         carrier_hz = 36000;
         const char *h = hex;

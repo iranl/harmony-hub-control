@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <sys/file.h>
 
 #define CURRENT_ACT_FILE "/data/codex/current_activity"
 #define ACTIVITY_LOCK_FILE "/tmp/codex_activity_transition"
@@ -67,7 +68,21 @@ void orch_set_progress_callback(orch_progress_cb cb, void *user_data) {
 }
 
 int orch_is_busy(void) {
-    if (access(ACTIVITY_LOCK_FILE, F_OK) == 0) return 1;
+    if (access(ACTIVITY_LOCK_FILE, F_OK) == 0) {
+        int fd = open(ACTIVITY_LOCK_FILE, O_RDWR);
+        if (fd >= 0) {
+            if (flock(fd, LOCK_EX | LOCK_NB) == 0) {
+                flock(fd, LOCK_UN);
+                close(fd);
+                unlink(ACTIVITY_LOCK_FILE);
+            } else {
+                close(fd);
+                return 1;
+            }
+        } else {
+            return 1;
+        }
+    }
     return (g_state == ORCH_STATE_STARTING || g_state == ORCH_STATE_STOPPING);
 }
 

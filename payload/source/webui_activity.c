@@ -14,6 +14,7 @@
 #include <sys/wait.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/file.h>
 #include <time.h>
 #include "cJSON.h"
 #include "codex_webui_types.h"
@@ -51,24 +52,37 @@ void activity_cache_invalidate(void) {
     s_cached_act_raw[0] = '\0';
 }
 
+static int s_activity_lock_fd = -1;
+
 int activity_is_transitioning(char *target_out, size_t target_len) {
-    FILE *f = fopen(ACTIVITY_LOCK_FILE, "r");
-    if (!f) return 0;
-    int pid = 0;
-    char target[32] = "";
-    long started = 0;
-    if (fscanf(f, "%d %31s %ld", &pid, target, &started) >= 1) {
-        fclose(f);
-        time_t now = time(NULL);
-        if (pid > 0 && kill((pid_t)pid, 0) == 0 && (now - started) < 60) {
-            if (target_out && target_len) snprintf(target_out, target_len, "%s", target);
-            return 1;
-        }
-    } else {
-        fclose(f);
+    if (s_activity_lock_fd >= 0) {
+        if (target_out && target_len) target_out[0] = '\0';
+        return 1;
     }
-    unlink(ACTIVITY_LOCK_FILE);
-    return 0;
+    int fd = open(ACTIVITY_LOCK_FILE, O_RDWR);
+    if (fd < 0) return 0;
+    if (flock(fd, LOCK_EX | LOCK_NB) == 0) {
+        /* Lock successfully acquired -> stale or unused file */
+        flock(fd, LOCK_UN);
+        close(fd);
+        unlink(ACTIVITY_LOCK_FILE);
+        return 0;
+    }
+    /* Lock is held by another process -> transitioning */
+    if (target_out && target_len > 0) {
+        target_out[0] = '\0';
+        char buf[128] = {0};
+        ssize_t r = pread(fd, buf, sizeof(buf) - 1, 0);
+        if (r > 0) {
+            int pid = 0;
+            char target[32] = "";
+            if (sscanf(buf, "%d %31s", &pid, target) >= 2) {
+                snprintf(target_out, target_len, "%s", target);
+            }
+        }
+    }
+    close(fd);
+    return 1;
 }
 
 #define ACTIVITY_STEP_FILE "/tmp/codex_activity_step"
@@ -139,30 +153,48 @@ void activity_get_transition_step(int *step, int *total, char *desc, size_t desc
 }
 
 void activity_set_transitioning(pid_t pid, const char *target_id) {
-    FILE *f = fopen(ACTIVITY_LOCK_FILE, "w");
-    if (f) {
-        fprintf(f, "%d %s %ld\n", (int)pid, (target_id && target_id[0]) ? target_id : "-1", (long)time(NULL));
-        fclose(f);
+    if (s_activity_lock_fd < 0) {
+        int fd = open(ACTIVITY_LOCK_FILE, O_RDWR | O_CREAT, 0666);
+        if (fd >= 0) {
+            if (flock(fd, LOCK_EX | LOCK_NB) == 0) {
+                s_activity_lock_fd = fd;
+            } else {
+                close(fd);
+                return;
+            }
+        }
+    }
+    if (s_activity_lock_fd >= 0) {
+        if (ftruncate(s_activity_lock_fd, 0) == 0) {
+            lseek(s_activity_lock_fd, 0, SEEK_SET);
+            char buf[128];
+            int len = snprintf(buf, sizeof(buf), "%d %s %ld\n",
+                               (int)pid, (target_id && target_id[0]) ? target_id : "-1", (long)time(NULL));
+            if (len > 0) write(s_activity_lock_fd, buf, len);
+            fsync(s_activity_lock_fd);
+        }
     }
 }
 
 void activity_clear_transitioning(void) {
+    if (s_activity_lock_fd >= 0) {
+        flock(s_activity_lock_fd, LOCK_UN);
+        close(s_activity_lock_fd);
+        s_activity_lock_fd = -1;
+    }
     unlink(ACTIVITY_LOCK_FILE);
     unlink(ACTIVITY_STEP_FILE);
 }
 
 void activity_startup_cleanup(void) {
-    FILE *f = fopen(ACTIVITY_LOCK_FILE, "r");
-    if (!f) return;
-    int pid = 0;
-    char target[32] = "";
-    long started = 0;
-    int items = fscanf(f, "%d %31s %ld", &pid, target, &started);
-    fclose(f);
-    if (items < 1 || pid <= 0 || kill((pid_t)pid, 0) != 0) {
+    int fd = open(ACTIVITY_LOCK_FILE, O_RDWR);
+    if (fd < 0) return;
+    if (flock(fd, LOCK_EX | LOCK_NB) == 0) {
+        flock(fd, LOCK_UN);
         unlink(ACTIVITY_LOCK_FILE);
         unlink(ACTIVITY_STEP_FILE);
     }
+    close(fd);
 }
 
 int activity_run_start(const char *activity_id, char *out, size_t outlen);
@@ -948,15 +980,23 @@ int activity_run_start(const char *activity_id, char *out, size_t outlen) {
     if (out && outlen) out[0] = '\0';
     if (!activity_id || !activity_id[0]) activity_id = "-1";
 
-    /* Reject if transition is already in progress */
-    if (activity_is_transitioning(trans_target, sizeof(trans_target))) {
+    /* Atomically test and acquire transition lock */
+    int fd = open(ACTIVITY_LOCK_FILE, O_RDWR | O_CREAT, 0666);
+    if (fd < 0 || flock(fd, LOCK_EX | LOCK_NB) != 0) {
+        if (fd >= 0) close(fd);
+        activity_is_transitioning(trans_target, sizeof(trans_target));
         if (out && outlen) {
-            snprintf(out, outlen, "Activity switch already in progress (switching to %s)", trans_target);
+            snprintf(out, outlen, "Activity switch already in progress (switching to %s)",
+                     trans_target[0] ? trans_target : "another activity");
         }
         return -2;
     }
 
-    /* Set lock file with current PID — no fork needed, caller runs transition inline */
+    if (s_activity_lock_fd >= 0) {
+        flock(s_activity_lock_fd, LOCK_UN);
+        close(s_activity_lock_fd);
+    }
+    s_activity_lock_fd = fd;
     activity_set_transitioning(getpid(), activity_id);
 
     if (out && outlen) snprintf(out, outlen, "Activity transition started");
