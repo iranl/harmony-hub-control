@@ -291,6 +291,8 @@ class Installer:
             "/data/codex/bin/codex_sntp",
             "/data/codex/bin/dropbearmulti",
             "/data/codex/bin/register_ehci",
+            "/data/codex/bin/mknod",
+            "/data/codex/modules/g_serial.ko",
             "/mnt/data/usb_eth/register_ehci",
             "/mnt/data/usb_eth/start_usb_eth.sh",
             "/mnt/data/usb_eth/stop_usb_eth.sh",
@@ -389,6 +391,8 @@ class Installer:
 
         if (PAYLOAD / "bin" / "register_ehci").is_file():
             self.upload_bytes(PAYLOAD / "bin" / "register_ehci", "/data/codex/bin/register_ehci", "755")
+        if (PAYLOAD / "bin" / "mknod").is_file():
+            self.upload_bytes(PAYLOAD / "bin" / "mknod", "/data/codex/bin/mknod", "755")
 
         self.upload_bytes(PAYLOAD / "bin" / "codex_portal", "/data/codex/bin/codex_portal", "755")
         self.upload_bytes(PAYLOAD / "bin" / "codex_webui", "/data/codex/bin/codex_webui", "755")
@@ -409,9 +413,10 @@ class Installer:
 
         modules_dir = PAYLOAD / "modules"
         if modules_dir.is_dir():
-            step("Uploading USB ethernet kernel modules")
+            step("Uploading kernel modules")
             for mod_path in sorted(modules_dir.glob("*.ko")):
                 self.upload_bytes(mod_path, f"/mnt/data/usb_eth/{mod_path.name}", "644")
+                self.upload_bytes(mod_path, f"/data/codex/modules/{mod_path.name}", "644")
 
         step("Uploading configuration")
         self.upload_text("1\n", "/etc/tdeenable", "644")
@@ -424,7 +429,7 @@ class Installer:
         step("Post-install permissions and startup")
         post = (
             "rm -rf /pkg/codexmqtt /data/codex/cloud_blocker.conf /data/codex/bt_backend.conf /opt/luaworks/tasks/connectserver/netservicestarter.lua /data/codex/bin/codex_hbus /data/codex/bin/codex_hal_ltcp /data/codex/bin/codex_bthid_keyboard /data/codex/bin/codex_bthid_remote /data/codex/bin/switch_bt.sh /data/codex/switch_bt.sh 2>/dev/null || true; "
-            "mkdir -p /mnt/data/usb_eth /data/codex/bin /etc/dropbear /home/root/.ssh /data/codexmqtt; "
+            "mkdir -p /mnt/data/usb_eth /data/codex/bin /data/codex/modules /etc/dropbear /home/root/.ssh /data/codexmqtt; "
             "ln -sf /data/codex/bin/register_ehci /mnt/data/usb_eth/register_ehci 2>/dev/null || true; "
             "ln -sf /mnt/data/usb_eth /data/codex/usb_eth 2>/dev/null || true; "
             "ln -sf /mnt/data/usb_eth/start_usb_eth.sh /data/codex/bin/start_usb_eth.sh 2>/dev/null || true; "
@@ -433,12 +438,13 @@ class Installer:
             "ln -sf /mnt/data/usb_eth/stop_usb_eth.sh /usr/sbin/stop_usb_eth.sh 2>/dev/null || true; "
             "ln -sf /data/codex/network_manager.sh /data/codex/bin/network_manager.sh 2>/dev/null || true; "
             "ln -sf /data/codex/network_manager.sh /usr/sbin/network_manager.sh 2>/dev/null || true; "
-            "chmod 755 /mnt/data/usb_eth/*.sh /mnt/data/usb_eth/register_ehci /data/codex/bin/register_ehci 2>/dev/null || true; "
+            "chmod 755 /mnt/data/usb_eth/*.sh /mnt/data/usb_eth/register_ehci /data/codex/bin/register_ehci /data/codex/bin/mknod 2>/dev/null || true; "
+            "chmod 644 /data/codex/modules/*.ko /mnt/data/usb_eth/*.ko 2>/dev/null || true; "
             "ln -sf dropbearmulti /data/codex/bin/dropbear; "
             "ln -sf dropbearmulti /data/codex/bin/dropbearkey; "
             "chmod 755 /data/codex/bin/dropbearmulti /data/codex/bin/codex_dhcpd "
             "/data/codex/bin/codex_btstack /data/codex/bin/codex_sntp "
-            "/data/codex/bin/codex_portal /data/codex/bin/codex_webui /data/codex/bin/codex_daemon /data/codex/init.sh "
+            "/data/codex/bin/codex_portal /data/codex/bin/codex_webui /data/codex/bin/codex_daemon /data/codex/bin/mknod /data/codex/init.sh "
             "/data/codex/bt_reconnect.sh /data/codex/recovery_ap.sh /data/codex/network_manager.sh /usr/sbin/dropbear "
             "/usr/sbin/dropbearkey /etc/init.d/rcS.local 2>/dev/null || true; "
             "chmod 600 /data/codexmqtt/config.json 2>/dev/null || true; "
@@ -481,6 +487,10 @@ class Installer:
             expected["/data/codex/bin/codex_daemon"] = local_md5(PAYLOAD / "bin" / "codex_daemon")
         if (PAYLOAD / "bin" / "register_ehci").is_file():
             expected["/data/codex/bin/register_ehci"] = local_md5(PAYLOAD / "bin" / "register_ehci")
+        if (PAYLOAD / "bin" / "mknod").is_file():
+            expected["/data/codex/bin/mknod"] = local_md5(PAYLOAD / "bin" / "mknod")
+        if (PAYLOAD / "modules" / "g_serial.ko").is_file():
+            expected["/data/codex/modules/g_serial.ko"] = local_md5(PAYLOAD / "modules" / "g_serial.ko")
         paths = " ".join(remote_quote(p) for p in expected)
         verify = self.run_remote(f"md5sum {paths}", timeout=45)
         print(verify.strip())

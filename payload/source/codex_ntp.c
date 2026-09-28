@@ -38,8 +38,16 @@ struct ntp_packet {
 static time_t sntp_query_single(const char *host, int apply) {
     if (!host || !host[0]) return 0;
 
-    struct hostent *server = gethostbyname(host);
-    if (!server) return 0;
+    struct sockaddr_in serv_addr;
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(NTP_PORT);
+
+    if (inet_aton(host, &serv_addr.sin_addr) == 0) {
+        struct hostent *server = gethostbyname(host);
+        if (!server || !server->h_addr_list || !server->h_addr_list[0]) return 0;
+        memcpy(&serv_addr.sin_addr, server->h_addr_list[0], sizeof(serv_addr.sin_addr));
+    }
 
     int sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sockfd < 0) return 0;
@@ -47,12 +55,6 @@ static time_t sntp_query_single(const char *host, int apply) {
     struct timeval timeout = { .tv_sec = 2, .tv_usec = 500000 };
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
-
-    struct sockaddr_in serv_addr;
-    memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    memcpy(&serv_addr.sin_addr.s_addr, server->h_addr, server->h_length);
-    serv_addr.sin_port = htons(NTP_PORT);
 
     struct ntp_packet packet;
     memset(&packet, 0, sizeof(packet));

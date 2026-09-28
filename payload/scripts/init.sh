@@ -92,16 +92,28 @@ fi
 ) &
 
 # 6. Web UI (HTML frontend on 8080) and Core Daemon (orchestrator/MQTT on 8089)
-if [ -x /data/codex/bin/codex_webui ]; then
-  if ! ps | grep '[c]odex_webui' >/dev/null 2>&1; then
-    /data/codex/bin/codex_webui 8080 >> "$LOG" 2>&1 &
-  fi
-fi
-if [ -x /data/codex/bin/codex_daemon ]; then
-  if ! ps | grep '[c]odex_daemon' >/dev/null 2>&1; then
-    /data/codex/bin/codex_daemon 8089 >> "$LOG" 2>&1 &
-  fi
-fi
+(
+  while true; do
+    if [ -x /data/codex/bin/codex_webui ]; then
+      if ! pidof codex_webui >/dev/null 2>&1; then
+        echo "$(date) Starting codex_webui..." >> "$LOG"
+        /data/codex/bin/codex_webui 8080 >> "$LOG" 2>&1
+      fi
+    fi
+    sleep 5
+  done
+) &
+(
+  while true; do
+    if [ -x /data/codex/bin/codex_daemon ]; then
+      if ! pidof codex_daemon >/dev/null 2>&1; then
+        echo "$(date) Starting codex_daemon..." >> "$LOG"
+        /data/codex/bin/codex_daemon 8089 >> "$LOG" 2>&1
+      fi
+    fi
+    sleep 5
+  done
+) &
 
 # 7. BTstack Bluetooth Engine (BlueZ 4 permanently disabled)
 chmod -x /usr/sbin/bluetoothd 2>/dev/null || true
@@ -121,4 +133,3 @@ if [ -x /data/codex/recovery_ap.sh ]; then
 fi
 
 echo "$(date) codex init done" >> "$LOG"
-

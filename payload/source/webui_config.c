@@ -207,6 +207,7 @@ void load_ethernet(struct ethernet_config *cfg) {
     cfg->enabled = 0;
     cfg->fallback_wifi = 1;
     cfg->is_static = 0;
+    cfg->usb_serial_console = 0;
     if (read_text(ETHERNET_CONFIG, raw, sizeof(raw)) <= 0) return;
 
     char *saveptr = NULL;
@@ -230,6 +231,8 @@ void load_ethernet(struct ethernet_config *cfg) {
                     cfg->fallback_wifi = (atoi(v) == 1);
                 } else if (strcmp(k, "ETH_MODE") == 0) {
                     cfg->is_static = (strcmp(v, "static") == 0);
+                } else if (strcmp(k, "ETH_USB_SERIAL") == 0 || strcmp(k, "USB_SERIAL_CONSOLE") == 0) {
+                    cfg->usb_serial_console = (atoi(v) == 1);
                 } else if (strcmp(k, "ETH_IP") == 0) {
                     strncpy(cfg->ip, v, sizeof(cfg->ip) - 1);
                 } else if (strcmp(k, "ETH_NETMASK") == 0) {
@@ -251,6 +254,7 @@ int save_ethernet(const struct ethernet_config *cfg) {
     fprintf(f, "# Ethernet and USB Host configuration\n");
     fprintf(f, "ETH_ENABLED=%d\n", cfg->enabled ? 1 : 0);
     fprintf(f, "ETH_FALLBACK_WIFI=%d\n", cfg->fallback_wifi ? 1 : 0);
+    fprintf(f, "ETH_USB_SERIAL=%d\n", cfg->usb_serial_console ? 1 : 0);
     fprintf(f, "ETH_MODE=%s\n", cfg->is_static ? "static" : "dhcp");
     fprintf(f, "ETH_IP=\"%s\"\n", cfg->ip);
     fprintf(f, "ETH_NETMASK=\"%s\"\n", cfg->netmask);
@@ -276,6 +280,9 @@ void get_network_status(struct network_status *st) {
             st->usb_host_mode = 1;
         } else if (strstr(mods, "ath_udc") != NULL) {
             st->usb_host_mode = 0;
+            if (strstr(mods, "g_serial") != NULL) {
+                st->usb_serial_active = 1;
+            }
         }
     }
 
@@ -546,7 +553,7 @@ static const char *bundle_get_string(cJSON *root, const char *key) {
 static const char *BUNDLE_CHECKSUM_KEYS[] = {
     "DeviceList.json", "FunctionList.json", "ProtocolList.json",
     "ActivityList.json", "mqtt-config.json", "wpa_supplicant.conf",
-    "bt-devices.json", "bt_remote_map.json", "hub_id",
+    "ethernet.conf", "bt-devices.json", "bt_remote_map.json", "hub_id",
     "webui_auth.conf", "debug_logging.conf", "bthid_target",
     "bt_remote_target", "btstack_keys.b64"
 };
@@ -723,6 +730,7 @@ void handle_ethernet(int fd, const struct request *req) {
     cfg = old;
     cfg.enabled = form_checked(req->body, "eth_enabled");
     cfg.fallback_wifi = form_checked(req->body, "eth_fallback_wifi");
+    cfg.usb_serial_console = form_checked(req->body, "eth_usb_serial");
     form_value(req->body, "eth_mode", mode, sizeof(mode));
     cfg.is_static = (strcmp(mode, "static") == 0);
     form_value(req->body, "eth_ip", cfg.ip, sizeof(cfg.ip));

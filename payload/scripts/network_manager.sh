@@ -15,6 +15,7 @@ log() {
 # Load configuration with safe defaults
 ETH_ENABLED=0
 ETH_FALLBACK_WIFI=1
+ETH_USB_SERIAL=0
 ETH_MODE="dhcp"
 ETH_IP=""
 ETH_NETMASK=""
@@ -30,6 +31,7 @@ load_config() {
       case "$key" in
         ETH_ENABLED) ETH_ENABLED="$val" ;;
         ETH_FALLBACK_WIFI) ETH_FALLBACK_WIFI="$val" ;;
+        ETH_USB_SERIAL|USB_SERIAL_CONSOLE) ETH_USB_SERIAL="$val" ;;
         ETH_MODE) ETH_MODE="$val" ;;
         ETH_IP) ETH_IP="$val" ;;
         ETH_NETMASK) ETH_NETMASK="$val" ;;
@@ -205,6 +207,51 @@ start_eth() {
   fi
 }
 
+start_usb_serial() {
+  log "Activating USB Serial Console (/dev/ttyGS0)..."
+  # Stop gadgetfs/usbhid if running
+  killall -9 usbgadget usbhid 2>/dev/null || true
+  umount /dev/gadget 2>/dev/null || true
+  rmmod gadgetfs 2>/dev/null || true
+
+  # Ensure controller platform device is active
+  if [ -x /data/codex/bin/register_ehci ]; then
+    /data/codex/bin/register_ehci >> "$LOG" 2>&1 || true
+  fi
+
+  # Load g_serial module
+  if ! lsmod | grep -q g_serial; then
+    if [ -f /data/codex/g_serial.ko ]; then
+      insmod /data/codex/g_serial.ko >> "$LOG" 2>&1 || true
+    elif [ -f /data/codex/modules/g_serial.ko ]; then
+      insmod /data/codex/modules/g_serial.ko >> "$LOG" 2>&1 || true
+    fi
+  fi
+
+  # Create device node if missing
+  if [ ! -c /dev/ttyGS0 ]; then
+    if [ -x /data/codex/bin/mknod ]; then
+      /data/codex/bin/mknod /dev/ttyGS0 c 254 0 >> "$LOG" 2>&1 || true
+    elif [ -x /data/codex/mknod_bin ]; then
+      /data/codex/mknod_bin /dev/ttyGS0 c 254 0 >> "$LOG" 2>&1 || true
+    fi
+  fi
+
+  # Start shell on ttyGS0 if not already running
+  if [ -c /dev/ttyGS0 ]; then
+    if ! ps | grep '[s]h -l' | grep -q 'ttyGS0'; then
+      ( while true; do /bin/sh -l </dev/ttyGS0 >/dev/ttyGS0 2>&1; sleep 1; done ) &
+      log "Started root login shell loop on /dev/ttyGS0"
+    fi
+  fi
+}
+
+stop_usb_serial() {
+  log "Stopping USB Serial Console..."
+  killall -9 sh 2>/dev/null || true
+  rmmod g_serial 2>/dev/null || true
+}
+
 stop_eth() {
   log "Stopping Ethernet and restoring USB gadget mode..."
   if [ -x /mnt/data/usb_eth/stop_usb_eth.sh ]; then
@@ -213,6 +260,9 @@ stop_eth() {
     /data/codex/bin/stop_usb_eth.sh >> "$LOG" 2>&1
   elif [ -x /usr/sbin/stop_usb_eth.sh ]; then
     /usr/sbin/stop_usb_eth.sh >> "$LOG" 2>&1
+  fi
+  if [ "$ETH_USB_SERIAL" = "1" ]; then
+    start_usb_serial
   fi
 }
 
@@ -273,6 +323,9 @@ do_boot() {
 
   if [ "$ETH_ENABLED" != "1" ]; then
     log "Ethernet is disabled in configuration. Keeping USB gadget and Wi-Fi."
+    if [ "$ETH_USB_SERIAL" = "1" ]; then
+      start_usb_serial
+    fi
     ensure_wifi
     exit 0
   fi
@@ -289,6 +342,9 @@ do_boot() {
 
   if [ "$pc_detected" = "1" ]; then
     log "PC host connected to USB gadget! Aborting switch to Ethernet to preserve PC sync."
+    if [ "$ETH_USB_SERIAL" = "1" ]; then
+      start_usb_serial
+    fi
     if [ "$ETH_FALLBACK_WIFI" = "1" ]; then
       log "Ensuring Wi-Fi is active while connected to PC..."
       ensure_wifi
@@ -321,6 +377,7 @@ do_apply() {
 
   if [ "$ETH_ENABLED" = "1" ]; then
     log "Enabling Ethernet..."
+    stop_usb_serial
     if start_eth; then
       run_monitor &
     else
@@ -333,6 +390,11 @@ do_apply() {
   else
     log "Disabling Ethernet. Restoring USB gadget and Wi-Fi..."
     stop_eth
+    if [ "$ETH_USB_SERIAL" = "1" ]; then
+      start_usb_serial
+    else
+      stop_usb_serial
+    fi
     ensure_wifi
   fi
 }
@@ -351,6 +413,12 @@ case "$1" in
   stop_eth)
     stop_eth
     ;;
+  start_serial)
+    start_usb_serial
+    ;;
+  stop_serial)
+    stop_usb_serial
+    ;;
   ensure_wifi)
     ensure_wifi
     ;;
@@ -361,11 +429,12 @@ case "$1" in
     load_config
     echo "ETH_ENABLED=$ETH_ENABLED"
     echo "ETH_FALLBACK_WIFI=$ETH_FALLBACK_WIFI"
+    echo "ETH_USB_SERIAL=$ETH_USB_SERIAL"
     echo "ETH_MODE=$ETH_MODE"
     cat "$STATE_FILE" 2>/dev/null
     ;;
   *)
-    echo "Usage: $0 {boot|apply|start_eth|stop_eth|ensure_wifi|monitor|status}"
+    echo "Usage: $0 {boot|apply|start_eth|stop_eth|start_serial|stop_serial|ensure_wifi|monitor|status}"
     exit 1
     ;;
 esac

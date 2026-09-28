@@ -114,32 +114,32 @@ int mqtt_is_connected(void) {
 }
 
 void mqtt_disconnect(void) {
-    if (g_fd >= 0) {
-        if (g_connected && g_lwt_topic[0]) {
-            mqtt_publish(g_lwt_topic, g_lwt_payload, g_lwt_retain);
-        }
-        uint8_t disc[2] = {0xE0, 0x00};
-        send(g_fd, disc, 2, 0);
-        close(g_fd);
-        g_fd = -1;
-    }
+    int fd = g_fd;
     g_connected = 0;
+    g_fd = -1;
+    if (fd >= 0) {
+        uint8_t disc[2] = {0xE0, 0x00};
+        send(fd, disc, 2, MSG_NOSIGNAL);
+        close(fd);
+    }
 }
 
 int mqtt_connect(void) {
     mqtt_disconnect();
 
-    struct hostent *he = gethostbyname(g_host);
-    if (!he) return -1;
-
-    g_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (g_fd < 0) return -1;
-
     struct sockaddr_in saddr;
     memset(&saddr, 0, sizeof(saddr));
     saddr.sin_family = AF_INET;
     saddr.sin_port = htons(g_port);
-    memcpy(&saddr.sin_addr, he->h_addr_list[0], he->h_length);
+
+    if (inet_aton(g_host, &saddr.sin_addr) == 0) {
+        struct hostent *he = gethostbyname(g_host);
+        if (!he || !he->h_addr_list || !he->h_addr_list[0]) return -1;
+        memcpy(&saddr.sin_addr, he->h_addr_list[0], sizeof(saddr.sin_addr));
+    }
+
+    g_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (g_fd < 0) return -1;
 
     /* 2-second connect timeout */
     struct timeval tv;

@@ -352,7 +352,7 @@ static void get_local_ip(char *buf, size_t buflen) {
 
     s = socket(AF_INET, SOCK_DGRAM, 0);
     if (s >= 0) {
-        const char *ifaces[] = {"wlan0", "br-lan", "eth0", NULL};
+        const char *ifaces[] = {"ath0", "eth1", "eth0", "wlan0", "br-lan", NULL};
         for (int i = 0; ifaces[i]; i++) {
             struct ifreq ifr;
             memset(&ifr, 0, sizeof(ifr));
@@ -1291,6 +1291,9 @@ int main(int argc, char **argv) {
     signal(SIGTERM, handle_sig);
     signal(SIGINT, handle_sig);
     signal(SIGPIPE, SIG_IGN);
+
+    setvbuf(stdout, NULL, _IOLBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
 
     write_pid();
 

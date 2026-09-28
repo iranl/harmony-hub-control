@@ -803,7 +803,9 @@ static void network_panel(FILE *f, const struct wifi_config *wifi, const struct 
             st->mac[0] ? st->mac : "-");
     fprintf(f, "<div><strong>USB Controller</strong></div><div>%s</div>",
             st->usb_host_mode ? "<span class='badge ok'>Host Mode (Ethernet)</span>" :
-            (st->usb_pc_connected ? "<span class='badge ok'>Gadget Mode (PC Connected)</span>" : "<span class='badge'>Gadget Mode (No PC)</span>"));
+            (st->usb_serial_active ?
+                (st->usb_pc_connected ? "<span class='badge ok'>Gadget Mode: USB Serial Console (PC Connected)</span>" : "<span class='badge'>Gadget Mode: USB Serial Console (No PC)</span>") :
+                (st->usb_pc_connected ? "<span class='badge ok'>Gadget Mode (PC Connected)</span>" : "<span class='badge'>Gadget Mode (No PC)</span>")));
     fprintf(f, "<div><strong>Ethernet Adapter</strong></div><div>%s</div>",
             st->usb_host_mode ?
                 (st->eth_present ?
@@ -817,12 +819,14 @@ static void network_panel(FILE *f, const struct wifi_config *wifi, const struct 
     fprintf(f, "</div>");
 
     /* 2. Ethernet & USB Host Settings Card */
-    fprintf(f, "<div class='panel'><h3>Ethernet &amp; USB Host</h3><div class='help'>Enable USB Host mode for USB Ethernet adapters (ASIX, RTL8152, CDC-Ether, etc.). On reboot, USB Gadget mode runs for 15s first to preserve PC recovery access if connected.</div>");
+    fprintf(f, "<div class='panel'><h3>Ethernet &amp; USB Gadget</h3><div class='help'>Enable USB Host mode for USB Ethernet adapters (ASIX, RTL8152, CDC-Ether, etc.). On reboot, USB Gadget mode runs for 15s first to preserve PC recovery access if connected.</div>");
     fprintf(f, "<form id='ethernetForm' method='post' action='/ethernet#network'>");
     fprintf(f, "<label><input type='checkbox' name='eth_enabled' value='1' %s id='ethEnabledCheck'> <strong>Enable Ethernet / USB Host</strong></label>", eth->enabled ? "checked" : "");
     fprintf(f, "<div class='help' style='margin-bottom:10px;'>When enabled, the hub switches USB to host mode to support USB network adapters.</div>");
     fprintf(f, "<label><input type='checkbox' name='eth_fallback_wifi' value='1' %s> <strong>Fallback to Wi-Fi if Ethernet unavailable</strong></label>", eth->fallback_wifi ? "checked" : "");
     fprintf(f, "<div class='help' style='margin-bottom:10px;'>If no Ethernet link or DHCP lease can be established, the hub automatically falls back to Wi-Fi.</div>");
+    fprintf(f, "<label><input type='checkbox' name='eth_usb_serial' value='1' %s> <strong>Enable Root Serial Console over USB (/dev/ttyGS0)</strong></label>", eth->usb_serial_console ? "checked" : "");
+    fprintf(f, "<div class='help' style='margin-bottom:10px;'>When USB is in gadget mode (or Ethernet disabled), hub exposes a CDC-ACM serial terminal giving direct root root shell access over USB.</div>");
     fprintf(f, "<label>IP Assignment Mode</label>");
     fprintf(f, "<select name='eth_mode' id='ethModeSelect'>");
     fprintf(f, "<option value='dhcp' %s>DHCP (Automatic - Recommended)</option>", !eth->is_static ? "selected" : "");

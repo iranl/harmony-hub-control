@@ -61,6 +61,11 @@ build_register_ehci() {
     "$CC" $CFLAGS -o "$BIN/register_ehci" payload/source/register_ehci.c
 }
 
+build_mknod() {
+    echo "[-] Building mknod..."
+    "$CC" $CFLAGS -o "$BIN/mknod" payload/source/mknod.c
+}
+
 build_btstack() {
     echo "[-] Building codex_btstack..."
     "$SCRIPT_DIR/build_btstack.sh"
@@ -88,6 +93,9 @@ case "$TARGET" in
     register_ehci)
         build_register_ehci
         ;;
+    mknod)
+        build_mknod
+        ;;
     all)
         build_dhcpd
         build_portal
@@ -95,23 +103,24 @@ case "$TARGET" in
         build_sntp
         build_daemon
         build_register_ehci
+        build_mknod
         build_btstack
         ;;
     *)
         echo "Unknown target: $TARGET"
-        echo "Usage: $0 [all|daemon|webui|sntp|portal|dhcpd|btstack|register_ehci]"
+        echo "Usage: $0 [all|daemon|webui|sntp|portal|dhcpd|btstack|register_ehci|mknod]"
         exit 1
         ;;
 esac
 
 echo "Copying binaries to build/output..."
-cp -f "$BIN"/codex_* "$BIN"/register_ehci "$OUT"/ 2>/dev/null || true
+cp -f "$BIN"/codex_* "$BIN"/register_ehci "$BIN"/mknod "$OUT"/ 2>/dev/null || true
 
 echo "Updating MANIFEST.txt and FILES..."
 cd "$BIN"
-file codex_btstack codex_dhcpd codex_portal codex_webui codex_daemon codex_sntp dropbearmulti register_ehci > FILES 2>/dev/null || true
-ls -l codex_btstack codex_dhcpd codex_portal codex_webui codex_daemon codex_sntp dropbearmulti register_ehci > MANIFEST.txt 2>/dev/null || true
-md5sum codex_btstack codex_dhcpd codex_portal codex_webui codex_daemon codex_sntp dropbearmulti register_ehci >> MANIFEST.txt 2>/dev/null || true
+file codex_btstack codex_dhcpd codex_portal codex_webui codex_daemon codex_sntp dropbearmulti register_ehci mknod > FILES 2>/dev/null || true
+ls -l codex_btstack codex_dhcpd codex_portal codex_webui codex_daemon codex_sntp dropbearmulti register_ehci mknod > MANIFEST.txt 2>/dev/null || true
+md5sum codex_btstack codex_dhcpd codex_portal codex_webui codex_daemon codex_sntp dropbearmulti register_ehci mknod >> MANIFEST.txt 2>/dev/null || true
 
 echo "=== Build finished successfully! ==="
-ls -lh "$BIN"/codex_* "$BIN"/register_ehci
+ls -lh "$BIN"/codex_* "$BIN"/register_ehci "$BIN"/mknod

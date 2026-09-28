@@ -109,6 +109,7 @@ struct ethernet_config {
     int enabled;
     int fallback_wifi;
     int is_static;
+    int usb_serial_console;
     char ip[64];
     char netmask[64];
     char gateway[64];
@@ -131,6 +132,7 @@ struct network_status {
     char wifi_ip[64];
     int usb_host_mode;
     int usb_pc_connected;
+    int usb_serial_active;
 };
 
 struct webui_auth_config {

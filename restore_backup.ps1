@@ -286,12 +286,13 @@ try {
     }
 
     Step "Applying post-restore permissions and restarting services"
-    $postRestore = "mkdir -p /data/codex/bin /etc/dropbear /data/codexmqtt; " +
+    $postRestore = "mkdir -p /data/codex/bin /data/codex/modules /etc/dropbear /data/codexmqtt; " +
         "if [ -f /data/codex/bin/dropbearmulti ]; then " +
         "ln -sf dropbearmulti /data/codex/bin/dropbear 2>/dev/null || true; " +
         "ln -sf dropbearmulti /data/codex/bin/dropbearkey 2>/dev/null || true; " +
         "fi; " +
         "chmod 755 /data/codex/bin/* /data/codex/*.sh /usr/sbin/dropbear* /etc/init.d/rcS* 2>/dev/null || true; " +
+        "chmod 644 /data/codex/modules/*.ko 2>/dev/null || true; " +
         "chmod 600 /data/codexmqtt/config.json /etc/dropbear/*key* 2>/dev/null || true; " +
         "/bin/busybox sync 2>/dev/null || true; " +
         "if ! ps | grep '[d]ropbear' >/dev/null 2>&1; then /usr/sbin/dropbear -R -p 22 2>/dev/null || true; fi; " +

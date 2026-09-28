@@ -365,6 +365,8 @@ $candidatePaths = @(
     "/data/codex/bin/codex_sntp",
     "/data/codex/bin/dropbearmulti",
     "/data/codex/bin/register_ehci",
+    "/data/codex/bin/mknod",
+    "/data/codex/modules/g_serial.ko",
     "/mnt/data/usb_eth/register_ehci",
     "/mnt/data/usb_eth/start_usb_eth.sh",
     "/mnt/data/usb_eth/stop_usb_eth.sh",
@@ -475,6 +477,9 @@ Upload-Bytes (Join-Path $Payload "bin\codex_webui") "/data/codex/bin/codex_webui
 if (Test-Path -LiteralPath (Join-Path $Payload "bin\register_ehci")) {
     Upload-Bytes (Join-Path $Payload "bin\register_ehci") "/data/codex/bin/register_ehci" "755"
 }
+if (Test-Path -LiteralPath (Join-Path $Payload "bin\mknod")) {
+    Upload-Bytes (Join-Path $Payload "bin\mknod") "/data/codex/bin/mknod" "755"
+}
 Upload-Bytes (Join-Path $Payload "scripts\dropbear") "/usr/sbin/dropbear" "755"
 Upload-Bytes (Join-Path $Payload "scripts\dropbearkey") "/usr/sbin/dropbearkey" "755"
 
@@ -495,9 +500,10 @@ if (Test-Path -LiteralPath (Join-Path $Payload "scripts\stop_usb_eth.sh")) {
 
 $modulesDir = Join-Path $Payload "modules"
 if (Test-Path -LiteralPath $modulesDir -PathType Container) {
-    Step "Uploading USB ethernet kernel modules"
+    Step "Uploading kernel modules"
     Get-ChildItem -LiteralPath $modulesDir -Filter "*.ko" | Sort-Object Name | ForEach-Object {
         Upload-Bytes $_.FullName "/mnt/data/usb_eth/$($_.Name)" "644"
+        Upload-Bytes $_.FullName "/data/codex/modules/$($_.Name)" "644"
     }
 }
 
@@ -513,7 +519,7 @@ else {
 
 Step "Post-install permissions and startup"
 $post = "rm -rf /pkg/codexmqtt /data/codex/cloud_blocker.conf /data/codex/bt_backend.conf /opt/luaworks/tasks/connectserver/netservicestarter.lua /data/codex/bin/codex_hbus /data/codex/bin/codex_hal_ltcp /data/codex/bin/codex_bthid_keyboard /data/codex/bin/codex_bthid_remote /data/codex/bin/switch_bt.sh /data/codex/switch_bt.sh 2>/dev/null || true; " +
-"mkdir -p /mnt/data/usb_eth /data/codex/bin /etc/dropbear /home/root/.ssh /data/codexmqtt; " +
+"mkdir -p /mnt/data/usb_eth /data/codex/bin /data/codex/modules /etc/dropbear /home/root/.ssh /data/codexmqtt; " +
 "ln -sf /data/codex/bin/register_ehci /mnt/data/usb_eth/register_ehci 2>/dev/null || true; " +
 "ln -sf /mnt/data/usb_eth /data/codex/usb_eth 2>/dev/null || true; " +
 "ln -sf /mnt/data/usb_eth/start_usb_eth.sh /data/codex/bin/start_usb_eth.sh 2>/dev/null || true; " +
@@ -522,10 +528,11 @@ $post = "rm -rf /pkg/codexmqtt /data/codex/cloud_blocker.conf /data/codex/bt_bac
 "ln -sf /mnt/data/usb_eth/stop_usb_eth.sh /usr/sbin/stop_usb_eth.sh 2>/dev/null || true; " +
 "ln -sf /data/codex/network_manager.sh /data/codex/bin/network_manager.sh 2>/dev/null || true; " +
 "ln -sf /data/codex/network_manager.sh /usr/sbin/network_manager.sh 2>/dev/null || true; " +
-"chmod 755 /mnt/data/usb_eth/*.sh /mnt/data/usb_eth/register_ehci /data/codex/bin/register_ehci 2>/dev/null || true; " +
+"chmod 755 /mnt/data/usb_eth/*.sh /mnt/data/usb_eth/register_ehci /data/codex/bin/register_ehci /data/codex/bin/mknod 2>/dev/null || true; " +
+"chmod 644 /data/codex/modules/*.ko /mnt/data/usb_eth/*.ko 2>/dev/null || true; " +
 "ln -sf dropbearmulti /data/codex/bin/dropbear; " +
 "ln -sf dropbearmulti /data/codex/bin/dropbearkey; " +
-"chmod 755 /data/codex/bin/dropbearmulti /data/codex/bin/codex_dhcpd /data/codex/bin/codex_btstack /data/codex/bin/codex_sntp /data/codex/bin/codex_portal /data/codex/bin/codex_webui /data/codex/bin/codex_daemon /data/codex/init.sh /data/codex/bt_reconnect.sh /data/codex/recovery_ap.sh /data/codex/network_manager.sh /usr/sbin/dropbear /usr/sbin/dropbearkey /etc/init.d/rcS.local 2>/dev/null || true; " +
+"chmod 755 /data/codex/bin/dropbearmulti /data/codex/bin/codex_dhcpd /data/codex/bin/codex_btstack /data/codex/bin/codex_sntp /data/codex/bin/codex_portal /data/codex/bin/codex_webui /data/codex/bin/codex_daemon /data/codex/bin/mknod /data/codex/init.sh /data/codex/bt_reconnect.sh /data/codex/recovery_ap.sh /data/codex/network_manager.sh /usr/sbin/dropbear /usr/sbin/dropbearkey /etc/init.d/rcS.local 2>/dev/null || true; " +
 "chmod 600 /data/codexmqtt/config.json 2>/dev/null || true; " +
 "chmod -x /usr/sbin/bluetoothd 2>/dev/null || true; " +
 "/bin/busybox sync 2>/dev/null || true"
@@ -567,6 +574,12 @@ if (Test-Path -LiteralPath (Join-Path $Payload "bin\codex_daemon")) {
 }
 if (Test-Path -LiteralPath (Join-Path $Payload "bin\register_ehci")) {
     $expected["/data/codex/bin/register_ehci"] = (Get-FileHash -Algorithm MD5 -LiteralPath (Join-Path $Payload "bin\register_ehci")).Hash.ToLowerInvariant()
+}
+if (Test-Path -LiteralPath (Join-Path $Payload "bin\mknod")) {
+    $expected["/data/codex/bin/mknod"] = (Get-FileHash -Algorithm MD5 -LiteralPath (Join-Path $Payload "bin\mknod")).Hash.ToLowerInvariant()
+}
+if (Test-Path -LiteralPath (Join-Path $Payload "modules\g_serial.ko")) {
+    $expected["/data/codex/modules/g_serial.ko"] = (Get-FileHash -Algorithm MD5 -LiteralPath (Join-Path $Payload "modules\g_serial.ko")).Hash.ToLowerInvariant()
 }
 
 $paths = ($expected.Keys | ForEach-Object { Remote-Quote $_ }) -join " "

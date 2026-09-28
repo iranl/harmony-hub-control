@@ -6,3 +6,4 @@ codex_daemon:  ELF 32-bit MSB executable, MIPS, MIPS32 version 1 (SYSV), statica
 codex_sntp:    ELF 32-bit MSB executable, MIPS, MIPS32 version 1 (SYSV), statically linked, stripped
 dropbearmulti: ELF 32-bit MSB executable, MIPS, MIPS32 version 1 (SYSV), statically linked, stripped
 register_ehci: ELF 32-bit MSB executable, MIPS, MIPS32 version 1 (SYSV), statically linked, stripped
+mknod:         ELF 32-bit MSB executable, MIPS, MIPS32 version 1 (SYSV), statically linked, stripped
