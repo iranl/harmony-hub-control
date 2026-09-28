@@ -53,6 +53,10 @@ int ir_i2s_blast_words(uint32_t carrier_hz, uint8_t duty,
  */
 int ir_i2s_capture(char *out, size_t outlen, unsigned int timeout_sec);
 
+int ir_i2s_init(void);
+void ir_i2s_shutdown(void);
+int ir_i2s_decode_capture(const uint8_t *raw_buf, size_t raw_len, char *out, size_t outlen);
+
 #ifdef __cplusplus
 }
 #endif

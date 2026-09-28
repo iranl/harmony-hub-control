@@ -1,6 +1,9 @@
 #include "orchestrator.h"
 #include "hw_action.h"
 #include "cJSON.h"
+#include "webui_activity.h"
+#include "webui_ir.h"
+#include "webui_bt.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,7 +16,6 @@
 #include <sys/file.h>
 
 #define CURRENT_ACT_FILE "/data/codex/current_activity"
-#define ACTIVITY_LOCK_FILE "/tmp/codex_activity_transition"
 
 static orch_state_t g_state = ORCH_STATE_IDLE;
 static char g_current_act[32] = ORCH_POWEROFF_ID;
@@ -68,21 +70,6 @@ void orch_set_progress_callback(orch_progress_cb cb, void *user_data) {
 }
 
 int orch_is_busy(void) {
-    if (access(ACTIVITY_LOCK_FILE, F_OK) == 0) {
-        int fd = open(ACTIVITY_LOCK_FILE, O_RDWR);
-        if (fd >= 0) {
-            if (flock(fd, LOCK_EX | LOCK_NB) == 0) {
-                flock(fd, LOCK_UN);
-                close(fd);
-                unlink(ACTIVITY_LOCK_FILE);
-            } else {
-                close(fd);
-                return 1;
-            }
-        } else {
-            return 1;
-        }
-    }
     return (g_state == ORCH_STATE_STARTING || g_state == ORCH_STATE_STOPPING);
 }
 
@@ -130,10 +117,18 @@ static void execute_step(const orch_step_t *step) {
         break;
     case STEP_ACT_DEVICE_CMD:
         if (step->device_id[0] && step->command_name[0]) {
-            hw_device_command_send(step->device_id, step->command_name);
+            int rc = hw_device_command_send(step->device_id, step->command_name);
+            if (rc != 0 && (strncmp(step->command_name, "0000 ", 5) == 0 ||
+                            step->command_name[0] == 'F' || step->command_name[0] == 'f')) {
+                hw_ir_send_harmony_keycode(step->command_name, IR_PORT_ALL, 3);
+            }
         }
         break;
     case STEP_ACT_BTHID:
+        if (step->command_name[0]) {
+            char bt_reply[256];
+            run_bt_saved_script("btkeyboard", "", step->command_name, 50, bt_reply, sizeof(bt_reply));
+        }
         break;
     case STEP_ACT_DELAY:
     default:
@@ -143,14 +138,6 @@ static void execute_step(const orch_step_t *step) {
 
 int orch_tick(void) {
     if (!orch_is_busy() || g_queue_len == 0) {
-        if (access(ACTIVITY_LOCK_FILE, F_OK) != 0 &&
-            (g_state == ORCH_STATE_STARTING || g_state == ORCH_STATE_STOPPING)) {
-            load_current_activity();
-            g_state = (strcmp(g_current_act, ORCH_POWEROFF_ID) == 0) ? ORCH_STATE_IDLE : ORCH_STATE_RUNNING;
-            if (g_progress_cb) {
-                g_progress_cb(g_current_act, g_state, 0, 0, "Transition completed", g_cb_user_data);
-            }
-        }
         return 0;
     }
 
@@ -182,51 +169,274 @@ int orch_tick(void) {
     g_current_step = 0;
 
     if (g_progress_cb) {
-        g_progress_cb(g_current_act, g_state, (int)g_queue_len, (int)g_queue_len,
-                      "Transition completed", g_cb_user_data);
+        g_progress_cb(g_current_act, g_state, 0, 0, "Transition completed", g_cb_user_data);
     }
     return 0;
 }
 
-static int trigger_webui_activity(const char *target_id) {
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) return -1;
-    struct sockaddr_in addr;
-    struct timeval tv = { .tv_sec = 3, .tv_usec = 0 };
-    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(8080);
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
-        close(fd);
+static int orch_compile_transition(const char *target_id) {
+    if (!target_id || !target_id[0]) target_id = ORCH_POWEROFF_ID;
+
+    struct activity_inventory *act_inv = (struct activity_inventory *)calloc(1, sizeof(*act_inv));
+    struct ir_inventory *ir_inv = (struct ir_inventory *)calloc(1, sizeof(*ir_inv));
+    if (!act_inv || !ir_inv) {
+        free(act_inv);
+        free(ir_inv);
         return -1;
     }
-    const char *endpoint = (strcmp(target_id, ORCH_POWEROFF_ID) == 0) ? "/api/activity-stop" : "/api/activity-start";
-    cJSON *jb = cJSON_CreateObject();
-    if (strcmp(target_id, ORCH_POWEROFF_ID) != 0) {
-        cJSON_AddStringToObject(jb, "id", target_id);
-    }
-    char *body = cJSON_PrintUnformatted(jb);
-    cJSON_Delete(jb);
 
-    char req[512];
-    snprintf(req, sizeof(req),
-             "POST %s HTTP/1.1\r\n"
-             "Host: 127.0.0.1:8080\r\n"
-             "Content-Type: application/json\r\n"
-             "Content-Length: %zu\r\n"
-             "Connection: close\r\n\r\n%s",
-             endpoint, body ? strlen(body) : 0, body ? body : "");
-    if (body) free(body);
-    send(fd, req, strlen(req), MSG_NOSIGNAL);
-    char resp[512] = {0};
-    ssize_t r = recv(fd, resp, sizeof(resp) - 1, 0);
-    close(fd);
-    if (r > 0 && strstr(resp, "409 Conflict")) return -2;
-    if (r > 0 && strstr(resp, "200 OK")) return 0;
-    return -1;
+    if (load_activity_inventory(act_inv) != 0) {
+        free(act_inv);
+        free(ir_inv);
+        return -1;
+    }
+
+    int has_ir = (load_ir_inventory(ir_inv) == 0);
+
+    int cur_idx = -1, target_idx = -1;
+    for (int i = 0; i < act_inv->count; i++) {
+        if (g_current_act[0] && strcmp(act_inv->items[i].id, g_current_act) == 0) cur_idx = i;
+        if (strcmp(act_inv->items[i].id, target_id) == 0) target_idx = i;
+    }
+
+    orch_step_t steps[ORCH_MAX_STEPS];
+    size_t count = 0;
+
+    /* 1. Stop sequence of departing activity */
+    if (cur_idx >= 0 && strcmp(g_current_act, target_id) != 0) {
+        struct activity_item *old_act = &act_inv->items[cur_idx];
+        for (int k = 0; k < old_act->stop_count && count < ORCH_MAX_STEPS; k++) {
+            const struct activity_step *st = &old_act->stop_steps[k];
+            memset(&steps[count], 0, sizeof(orch_step_t));
+            if (strcasecmp(st->type, "Delay") == 0) {
+                steps[count].type = STEP_ACT_DELAY;
+                steps[count].delay_ms = st->delay_ms ? (uint32_t)st->delay_ms : 50;
+                snprintf(steps[count].description, sizeof(steps[count].description), "Stop: Delay %dms", st->delay_ms);
+            } else if (strcasecmp(st->type, "BTCommand") == 0) {
+                steps[count].type = STEP_ACT_BTHID;
+                strncpy(steps[count].command_name, st->command, sizeof(steps[count].command_name) - 1);
+                steps[count].delay_ms = st->delay_ms > 0 ? (uint32_t)st->delay_ms : 250;
+                snprintf(steps[count].description, sizeof(steps[count].description), "Stop: %s", st->command);
+            } else {
+                steps[count].type = STEP_ACT_DEVICE_CMD;
+                strncpy(steps[count].device_id, st->device_id, sizeof(steps[count].device_id) - 1);
+                strncpy(steps[count].command_name, st->command, sizeof(steps[count].command_name) - 1);
+                steps[count].delay_ms = st->delay_ms > 0 ? (uint32_t)st->delay_ms : 250;
+                snprintf(steps[count].description, sizeof(steps[count].description), "Stop: %s", st->command[0] ? st->command : st->type);
+            }
+            count++;
+        }
+    }
+
+    /* 2. Power OFF departing devices (not present in new activity) */
+    if (has_ir && cur_idx >= 0 && strcmp(g_current_act, target_id) != 0) {
+        struct activity_item *old_act = &act_inv->items[cur_idx];
+        struct activity_item *new_act = (target_idx >= 0) ? &act_inv->items[target_idx] : NULL;
+
+        for (int i = old_act->device_count - 1; i >= 0 && count < ORCH_MAX_STEPS; i--) {
+            const char *dev_id = old_act->device_ids[i];
+            int in_new = 0;
+            if (new_act) {
+                for (int j = 0; j < new_act->device_count; j++) {
+                    if (strcmp(new_act->device_ids[j], dev_id) == 0) { in_new = 1; break; }
+                }
+            }
+            if (!in_new) {
+                if (strcmp(target_id, ORCH_POWEROFF_ID) == 0 && target_idx >= 0 && act_inv->items[target_idx].start_count > 0) {
+                    int in_poweroff_seq = 0;
+                    for (int j = 0; j < act_inv->items[target_idx].start_count; j++) {
+                        if (strcmp(act_inv->items[target_idx].start_steps[j].device_id, dev_id) == 0) {
+                            in_poweroff_seq = 1;
+                            break;
+                        }
+                    }
+                    if (in_poweroff_seq) continue;
+                }
+
+                struct ir_device *dev = NULL;
+                for (int j = 0; j < ir_inv->device_count; j++) {
+                    if (strcmp(ir_inv->devices[j].id, dev_id) == 0) {
+                        dev = &ir_inv->devices[j];
+                        break;
+                    }
+                }
+                if (!dev || dev->is_power_always_on) continue;
+
+                if (dev->power_off_count > 0 && dev->power_off_steps) {
+                    for (int k = 0; k < dev->power_off_count && count < ORCH_MAX_STEPS; k++) {
+                        const struct activity_step *st = &dev->power_off_steps[k];
+                        memset(&steps[count], 0, sizeof(orch_step_t));
+                        if (strcasecmp(st->type, "Delay") == 0) {
+                            steps[count].type = STEP_ACT_DELAY;
+                            steps[count].delay_ms = st->delay_ms ? (uint32_t)st->delay_ms : 50;
+                            snprintf(steps[count].description, sizeof(steps[count].description), "Power off %s: Delay %dms", dev->name, st->delay_ms);
+                        } else if (strcasecmp(st->type, "BTCommand") == 0) {
+                            steps[count].type = STEP_ACT_BTHID;
+                            strncpy(steps[count].command_name, st->command, sizeof(steps[count].command_name) - 1);
+                            steps[count].delay_ms = st->delay_ms > 0 ? (uint32_t)st->delay_ms : 250;
+                            snprintf(steps[count].description, sizeof(steps[count].description), "Power off %s: %s", dev->name, st->command);
+                        } else {
+                            steps[count].type = STEP_ACT_DEVICE_CMD;
+                            strncpy(steps[count].device_id, st->device_id, sizeof(steps[count].device_id) - 1);
+                            strncpy(steps[count].command_name, st->command, sizeof(steps[count].command_name) - 1);
+                            steps[count].delay_ms = st->delay_ms > 0 ? (uint32_t)st->delay_ms : 250;
+                            snprintf(steps[count].description, sizeof(steps[count].description), "Power off %s: %s", dev->name, st->command);
+                        }
+                        count++;
+                    }
+                } else {
+                    const char *cmd_name = NULL;
+                    for (int k = 0; k < dev->command_count; k++) {
+                        if (strcasecmp(dev->commands[k].name, "PowerOff") == 0) {
+                            cmd_name = dev->commands[k].name;
+                            break;
+                        }
+                    }
+                    if (!cmd_name) {
+                        for (int k = 0; k < dev->command_count; k++) {
+                            if (strcasecmp(dev->commands[k].name, "PowerToggle") == 0 ||
+                                strcasecmp(dev->commands[k].name, "Power") == 0) {
+                                cmd_name = dev->commands[k].name;
+                                break;
+                            }
+                        }
+                    }
+                    if (cmd_name && count < ORCH_MAX_STEPS) {
+                        memset(&steps[count], 0, sizeof(orch_step_t));
+                        steps[count].type = STEP_ACT_DEVICE_CMD;
+                        strncpy(steps[count].device_id, dev->id, sizeof(steps[count].device_id) - 1);
+                        strncpy(steps[count].command_name, cmd_name, sizeof(steps[count].command_name) - 1);
+                        steps[count].delay_ms = dev->inter_device_delay > 0 ? (uint32_t)dev->inter_device_delay : 250;
+                        snprintf(steps[count].description, sizeof(steps[count].description), "Power off %s", dev->name);
+                        count++;
+                    }
+                }
+            }
+        }
+    }
+
+    /* 3. Power ON arriving devices (not present in old activity) */
+    if (has_ir && target_idx >= 0 && strcmp(target_id, ORCH_POWEROFF_ID) != 0) {
+        struct activity_item *new_act = &act_inv->items[target_idx];
+        struct activity_item *old_act = (cur_idx >= 0 && strcmp(g_current_act, ORCH_POWEROFF_ID) != 0) ? &act_inv->items[cur_idx] : NULL;
+        int max_warmup = 0;
+
+        for (int i = 0; i < new_act->device_count && count < ORCH_MAX_STEPS; i++) {
+            const char *dev_id = new_act->device_ids[i];
+            int in_old = 0;
+            if (old_act) {
+                for (int j = 0; j < old_act->device_count; j++) {
+                    if (strcmp(old_act->device_ids[j], dev_id) == 0) { in_old = 1; break; }
+                }
+            }
+            if (!in_old) {
+                struct ir_device *dev = NULL;
+                for (int j = 0; j < ir_inv->device_count; j++) {
+                    if (strcmp(ir_inv->devices[j].id, dev_id) == 0) {
+                        dev = &ir_inv->devices[j];
+                        break;
+                    }
+                }
+                if (!dev || dev->is_power_always_on) continue;
+
+                if (dev->power_on_count > 0 && dev->power_on_steps) {
+                    for (int k = 0; k < dev->power_on_count && count < ORCH_MAX_STEPS; k++) {
+                        const struct activity_step *st = &dev->power_on_steps[k];
+                        memset(&steps[count], 0, sizeof(orch_step_t));
+                        if (strcasecmp(st->type, "Delay") == 0) {
+                            steps[count].type = STEP_ACT_DELAY;
+                            steps[count].delay_ms = st->delay_ms ? (uint32_t)st->delay_ms : 50;
+                            snprintf(steps[count].description, sizeof(steps[count].description), "Power on %s: Delay %dms", dev->name, st->delay_ms);
+                        } else if (strcasecmp(st->type, "BTCommand") == 0) {
+                            steps[count].type = STEP_ACT_BTHID;
+                            strncpy(steps[count].command_name, st->command, sizeof(steps[count].command_name) - 1);
+                            steps[count].delay_ms = st->delay_ms > 0 ? (uint32_t)st->delay_ms : 250;
+                            snprintf(steps[count].description, sizeof(steps[count].description), "Power on %s: %s", dev->name, st->command);
+                        } else {
+                            steps[count].type = STEP_ACT_DEVICE_CMD;
+                            strncpy(steps[count].device_id, st->device_id, sizeof(steps[count].device_id) - 1);
+                            strncpy(steps[count].command_name, st->command, sizeof(steps[count].command_name) - 1);
+                            steps[count].delay_ms = st->delay_ms > 0 ? (uint32_t)st->delay_ms : 250;
+                            snprintf(steps[count].description, sizeof(steps[count].description), "Power on %s: %s", dev->name, st->command);
+                        }
+                        count++;
+                    }
+                } else {
+                    const char *cmd_name = NULL;
+                    for (int k = 0; k < dev->command_count; k++) {
+                        if (strcasecmp(dev->commands[k].name, "PowerOn") == 0) {
+                            cmd_name = dev->commands[k].name;
+                            break;
+                        }
+                    }
+                    if (!cmd_name) {
+                        for (int k = 0; k < dev->command_count; k++) {
+                            if (strcasecmp(dev->commands[k].name, "PowerToggle") == 0 ||
+                                strcasecmp(dev->commands[k].name, "Power") == 0) {
+                                cmd_name = dev->commands[k].name;
+                                break;
+                            }
+                        }
+                    }
+                    if (cmd_name && count < ORCH_MAX_STEPS) {
+                        memset(&steps[count], 0, sizeof(orch_step_t));
+                        steps[count].type = STEP_ACT_DEVICE_CMD;
+                        strncpy(steps[count].device_id, dev->id, sizeof(steps[count].device_id) - 1);
+                        strncpy(steps[count].command_name, cmd_name, sizeof(steps[count].command_name) - 1);
+                        steps[count].delay_ms = dev->inter_device_delay > 0 ? (uint32_t)dev->inter_device_delay : 250;
+                        snprintf(steps[count].description, sizeof(steps[count].description), "Power on %s", dev->name);
+                        count++;
+                    }
+                }
+                if (dev->power_on_delay > max_warmup) {
+                    max_warmup = dev->power_on_delay;
+                }
+            }
+        }
+        if (max_warmup > 0 && count < ORCH_MAX_STEPS) {
+            memset(&steps[count], 0, sizeof(orch_step_t));
+            steps[count].type = STEP_ACT_DELAY;
+            steps[count].delay_ms = (uint32_t)max_warmup;
+            snprintf(steps[count].description, sizeof(steps[count].description), "Warmup delay %dms", max_warmup);
+            count++;
+        }
+    }
+
+    /* 4. Start sequence of arriving activity */
+    if (target_idx >= 0) {
+        struct activity_item *new_act = &act_inv->items[target_idx];
+        for (int k = 0; k < new_act->start_count && count < ORCH_MAX_STEPS; k++) {
+            const struct activity_step *st = &new_act->start_steps[k];
+            memset(&steps[count], 0, sizeof(orch_step_t));
+            if (strcasecmp(st->type, "Delay") == 0) {
+                steps[count].type = STEP_ACT_DELAY;
+                steps[count].delay_ms = st->delay_ms ? (uint32_t)st->delay_ms : 50;
+                snprintf(steps[count].description, sizeof(steps[count].description), "%s: Delay %dms",
+                         strcmp(target_id, ORCH_POWEROFF_ID) == 0 ? "PowerOff" : "Setup", st->delay_ms);
+            } else if (strcasecmp(st->type, "BTCommand") == 0) {
+                steps[count].type = STEP_ACT_BTHID;
+                strncpy(steps[count].command_name, st->command, sizeof(steps[count].command_name) - 1);
+                steps[count].delay_ms = st->delay_ms > 0 ? (uint32_t)st->delay_ms : 250;
+                snprintf(steps[count].description, sizeof(steps[count].description), "%s: %s",
+                         strcmp(target_id, ORCH_POWEROFF_ID) == 0 ? "PowerOff" : "Setup", st->command);
+            } else {
+                steps[count].type = STEP_ACT_DEVICE_CMD;
+                strncpy(steps[count].device_id, st->device_id, sizeof(steps[count].device_id) - 1);
+                strncpy(steps[count].command_name, st->command, sizeof(steps[count].command_name) - 1);
+                steps[count].delay_ms = st->delay_ms > 0 ? (uint32_t)st->delay_ms : 250;
+                snprintf(steps[count].description, sizeof(steps[count].description), "%s: %s",
+                         strcmp(target_id, ORCH_POWEROFF_ID) == 0 ? "PowerOff" : "Setup",
+                         st->command[0] ? st->command : st->type);
+            }
+            count++;
+        }
+    }
+
+    if (has_ir) free_ir_inventory(ir_inv);
+    free(act_inv);
+    free(ir_inv);
+
+    return orch_enqueue_steps(steps, count);
 }
 
 int orch_switch_activity(const char *target_activity_id, int dry_run,
@@ -255,17 +465,26 @@ int orch_switch_activity(const char *target_activity_id, int dry_run,
 
     strncpy(g_target_act, target_activity_id, sizeof(g_target_act) - 1);
     g_state = ORCH_STATE_STARTING;
-    int rc = trigger_webui_activity(target_activity_id);
-    if (rc == 0) {
+
+    int rc = orch_compile_transition(target_activity_id);
+    if (rc != 0) {
+        g_state = (strcmp(g_current_act, ORCH_POWEROFF_ID) == 0) ? ORCH_STATE_IDLE : ORCH_STATE_RUNNING;
+        return -1;
+    }
+
+    if (g_queue_len == 0) {
+        strncpy(g_current_act, g_target_act, sizeof(g_current_act) - 1);
+        save_current_activity(g_current_act);
+        g_state = ORCH_STATE_RUNNING;
+        if (g_progress_cb) {
+            g_progress_cb(g_current_act, g_state, 0, 0, "Transition completed", g_cb_user_data);
+        }
         return 0;
     }
-    if (rc == -2) {
-        g_state = (strcmp(g_current_act, ORCH_POWEROFF_ID) == 0) ? ORCH_STATE_IDLE : ORCH_STATE_RUNNING;
-        return -2;
+
+    if (g_progress_cb) {
+        g_progress_cb(g_target_act, g_state, 0, (int)g_queue_len, "Starting switch...", g_cb_user_data);
     }
-    save_current_activity(target_activity_id);
-    strncpy(g_current_act, target_activity_id, sizeof(g_current_act) - 1);
-    g_state = ORCH_STATE_RUNNING;
     return 0;
 }
 
@@ -289,16 +508,25 @@ int orch_power_off(int dry_run, char *preview_json, size_t preview_len) {
 
     strncpy(g_target_act, ORCH_POWEROFF_ID, sizeof(g_target_act) - 1);
     g_state = ORCH_STATE_STOPPING;
-    int rc = trigger_webui_activity(ORCH_POWEROFF_ID);
-    if (rc == 0) {
+
+    int rc = orch_compile_transition(ORCH_POWEROFF_ID);
+    if (rc != 0) {
+        g_state = (strcmp(g_current_act, ORCH_POWEROFF_ID) == 0) ? ORCH_STATE_IDLE : ORCH_STATE_RUNNING;
+        return -1;
+    }
+
+    if (g_queue_len == 0) {
+        strncpy(g_current_act, ORCH_POWEROFF_ID, sizeof(g_current_act) - 1);
+        save_current_activity(g_current_act);
+        g_state = ORCH_STATE_IDLE;
+        if (g_progress_cb) {
+            g_progress_cb(g_current_act, g_state, 0, 0, "Transition completed", g_cb_user_data);
+        }
         return 0;
     }
-    if (rc == -2) {
-        g_state = (strcmp(g_current_act, ORCH_POWEROFF_ID) == 0) ? ORCH_STATE_IDLE : ORCH_STATE_RUNNING;
-        return -2;
+
+    if (g_progress_cb) {
+        g_progress_cb(g_target_act, g_state, 0, (int)g_queue_len, "Starting switch...", g_cb_user_data);
     }
-    save_current_activity(ORCH_POWEROFF_ID);
-    strncpy(g_current_act, ORCH_POWEROFF_ID, sizeof(g_current_act) - 1);
-    g_state = ORCH_STATE_IDLE;
     return 0;
 }

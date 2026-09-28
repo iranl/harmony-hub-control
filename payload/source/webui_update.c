@@ -357,7 +357,7 @@ void render_update_begin_json(int fd, const struct request *req) {
         return;
     }
     form_value(req->body, "manifest", manifest, MAX_REQUEST_BODY);
-    if (!strstr(manifest, "codex_webui")) {
+    if (!strstr(manifest, "codex_daemon")) {
         free(manifest);
         cJSON *err = cJSON_CreateObject();
         cJSON_AddBoolToObject(err, "ok", 0);
@@ -479,7 +479,7 @@ void render_update_apply_json(int fd, const struct request *req) {
         cJSON_Delete(err);
         return;
     }
-    remove_dir_entries_with_prefix(CODEX_BIN_DIR, "codex_webui.prev");
+
     mkdir(UPDATE_BACKUP_DIR, 0755);
     prune_update_backups(3);
     snprintf(backup_dir, sizeof(backup_dir), UPDATE_BACKUP_DIR "/%ld", (long)time(NULL));
@@ -558,8 +558,8 @@ void render_update_apply_json(int fd, const struct request *req) {
             setsid();
             execl("/bin/sh", "sh", "-c",
                   "sleep 3; "
-                  "killall codex_webui 2>/dev/null; "
-                  "/data/codex/bin/codex_webui 8080 >> /tmp/codex-init.log 2>&1 &",
+                  "killall codex_daemon 2>/dev/null; "
+                  "/data/codex/bin/codex_daemon 8089 >> /tmp/codex-init.log 2>&1 &",
                   (char *)NULL);
             _exit(127);
         }

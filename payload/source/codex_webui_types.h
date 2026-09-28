@@ -48,7 +48,6 @@
 #define MAX_BT_SCRIPT_LEN 2048
 
 static const char *UPDATE_FILES[] = {
-    "codex_webui",
     "codex_daemon",
     "codex_btstack",
     "codex_sntp",

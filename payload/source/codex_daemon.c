@@ -15,10 +15,12 @@
 #include <fcntl.h>
 
 #include "ir_encoder.h"
+#include "ir_i2s.h"
 #include "hw_action.h"
 #include "orchestrator.h"
 #include "ws_server.h"
 #include "http_server.h"
+#include "webui_server.h"
 #include "mqtt_client.h"
 #include "codex_ntp.h"
 #include "cJSON.h"
@@ -206,22 +208,22 @@ static void on_orch_progress(const char *act_id, orch_state_t state,
         mqtt_publish(act_status_top, msg, 1);
         free(msg);
     }
-    if (state == ORCH_STATE_IDLE || state == ORCH_STATE_RUNNING) {
-        cJSON *sj = cJSON_CreateObject();
-        if (sj) {
-            cJSON_AddStringToObject(sj, "type", "activity_state");
-            cJSON_AddStringToObject(sj, "activity", act_id ? act_id : "");
-            cJSON_AddNumberToObject(sj, "state", (int)state);
-            char *smsg = cJSON_PrintUnformatted(sj);
-            cJSON_Delete(sj);
-            if (smsg) {
-                ws_broadcast_text(smsg);
-                free(smsg);
+        if (state == ORCH_STATE_IDLE || state == ORCH_STATE_RUNNING) {
+            cJSON *sj = cJSON_CreateObject();
+            if (sj) {
+                cJSON_AddStringToObject(sj, "type", "activity_state");
+                cJSON_AddStringToObject(sj, "activity", act_id ? act_id : "");
+                cJSON_AddNumberToObject(sj, "state", (int)state);
+                char *smsg = cJSON_PrintUnformatted(sj);
+                cJSON_Delete(sj);
+                if (smsg) {
+                    ws_broadcast_text(smsg);
+                    free(smsg);
+                }
             }
+            publish_mqtt_state();
         }
     }
-    publish_mqtt_state();
-}
 
 struct daemon_activity {
     char id[32];
@@ -860,8 +862,6 @@ static void handle_mqtt_activity_set(const char *payload) {
         int rc = orch_power_off(0, NULL, 0);
         if (rc == -2) {
             printf("[!] MQTT: transition already in progress, PowerOff request dropped\n");
-        } else {
-            publish_mqtt_state();
         }
         return;
     }
@@ -893,8 +893,6 @@ static void handle_mqtt_activity_set(const char *payload) {
     int rc = orch_switch_activity(target_id, 0, NULL, 0);
     if (rc == -2) {
         printf("[!] MQTT: transition already in progress, switch request dropped\n");
-    } else {
-        publish_mqtt_state();
     }
 }
 
@@ -1323,6 +1321,7 @@ int main(int argc, char **argv) {
 
     /* 1. Hardware & Orchestrator Core */
     orch_init();
+    ir_i2s_init();
     orch_set_progress_callback(on_orch_progress, NULL);
     hw_set_mqtt_button_handler(daemon_mqtt_button_handler);
     printf("[+] Hardware core & Activity Orchestrator initialized (current: %s)\n",
@@ -1336,6 +1335,13 @@ int main(int argc, char **argv) {
         return 1;
     }
     printf("[+] HTTP & WebSocket server listening on port %d\n", port);
+
+    int srv_fd_webui = webui_server_init(8080);
+    if (srv_fd_webui >= 0) {
+        printf("[+] WebUI server listening on port 8080\n");
+    } else {
+        fprintf(stderr, "[-] Warning: Could not bind WebUI server on port 8080: %s\n", strerror(errno));
+    }
 
     /* 3. MQTT Client */
     g_mqtt_enabled = load_mqtt_config(g_mqtt_host, &g_mqtt_port, g_mqtt_cid, g_mqtt_user, g_mqtt_pass);
@@ -1374,6 +1380,20 @@ int main(int argc, char **argv) {
         FD_SET(srv_fd, &rset);
         int max_fd = srv_fd;
 
+        if (srv_fd_webui >= 0) {
+            FD_SET(srv_fd_webui, &rset);
+            if (srv_fd_webui > max_fd) max_fd = srv_fd_webui;
+        }
+
+        int cap_fd = -1;
+        if (webui_capture_is_active()) {
+            cap_fd = webui_capture_fd();
+            if (cap_fd >= 0) {
+                FD_SET(cap_fd, &rset);
+                if (cap_fd > max_fd) max_fd = cap_fd;
+            }
+        }
+
         int client_fds[WS_MAX_CLIENTS];
         int client_count = ws_get_clients(client_fds, WS_MAX_CLIENTS);
         for (int i = 0; i < client_count; i++) {
@@ -1396,12 +1416,27 @@ int main(int argc, char **argv) {
                 }
             }
 
+            if (srv_fd_webui >= 0 && FD_ISSET(srv_fd_webui, &rset)) {
+                struct sockaddr_in caddr;
+                socklen_t clen = sizeof(caddr);
+                int cfd = accept(srv_fd_webui, (struct sockaddr *)&caddr, &clen);
+                if (cfd >= 0) {
+                    webui_handle_client(cfd);
+                }
+            }
+
             for (int i = 0; i < client_count; i++) {
                 int cfd = client_fds[i];
                 if (FD_ISSET(cfd, &rset)) {
                     handle_ws_client_message(cfd);
                 }
             }
+        }
+
+        /* Tick WebUI async IR capture state machine */
+        if (webui_capture_is_active()) {
+            int is_readable = (nready > 0 && cap_fd >= 0 && FD_ISSET(cap_fd, &rset));
+            webui_capture_tick(is_readable);
         }
 
         /* Tick Activity Orchestrator state machine & delays */
@@ -1437,8 +1472,10 @@ int main(int argc, char **argv) {
 
     printf("\n[*] Shutting down codex_daemon...\n");
     orch_cancel();
+    ir_i2s_shutdown();
     ws_close_all();
     http_server_close(srv_fd);
+    if (srv_fd_webui >= 0) webui_server_close(srv_fd_webui);
     if (g_mqtt_enabled) mqtt_disconnect();
     unlink(PID_FILE);
 

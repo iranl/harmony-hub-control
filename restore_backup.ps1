@@ -296,11 +296,10 @@ try {
         "chmod 600 /data/codexmqtt/config.json /etc/dropbear/*key* 2>/dev/null || true; " +
         "/bin/busybox sync 2>/dev/null || true; " +
         "if ! ps | grep '[d]ropbear' >/dev/null 2>&1; then /usr/sbin/dropbear -R -p 22 2>/dev/null || true; fi; " +
-        "if [ -x /data/codex/bin/codex_webui ]; then /data/codex/bin/codex_webui 8080 >> /tmp/codex-init.log 2>&1 & fi; " +
         "if [ -x /data/codex/bin/codex_daemon ]; then /data/codex/bin/codex_daemon 8089 >> /tmp/codex-init.log 2>&1 & fi; " +
         "if [ -x /data/codex/bin/codex_btstack ]; then /data/codex/bin/codex_btstack >> /tmp/codex-init.log 2>&1 & fi; " +
         "sleep 1; " +
-        "ps | grep '[c]odex_webui' || true; ps | grep '[c]odex_daemon' || true; ps | grep '[c]odex_btstack' || true; ps | grep '[d]ropbear' || true"
+        "ps | grep '[c]odex_daemon' || true; ps | grep '[c]odex_btstack' || true; ps | grep '[d]ropbear' || true"
 
     $running = Invoke-Remote $postRestore $null 90000
     Write-Host $running.Trim()

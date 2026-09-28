@@ -221,9 +221,7 @@ start_usb_serial() {
 
   # Load g_serial module
   if ! lsmod | grep -q g_serial; then
-    if [ -f /data/codex/g_serial.ko ]; then
-      insmod /data/codex/g_serial.ko >> "$LOG" 2>&1 || true
-    elif [ -f /data/codex/modules/g_serial.ko ]; then
+    if [ -f /data/codex/modules/g_serial.ko ]; then
       insmod /data/codex/modules/g_serial.ko >> "$LOG" 2>&1 || true
     fi
   fi
@@ -232,8 +230,6 @@ start_usb_serial() {
   if [ ! -c /dev/ttyGS0 ]; then
     if [ -x /data/codex/bin/mknod ]; then
       /data/codex/bin/mknod /dev/ttyGS0 c 254 0 >> "$LOG" 2>&1 || true
-    elif [ -x /data/codex/mknod_bin ]; then
-      /data/codex/mknod_bin /dev/ttyGS0 c 254 0 >> "$LOG" 2>&1 || true
     fi
   fi
 

@@ -53,7 +53,25 @@ build_sntp() {
 
 build_daemon() {
     echo "[-] Building codex_daemon..."
-    "$CC" $CFLAGS -Ipayload/source -o "$BIN/codex_daemon" payload/source/codex_daemon.c payload/source/resource_cache.c payload/source/cJSON.c payload/source/ir_encoder.c payload/source/ir_i2s.c payload/source/hw_action.c payload/source/orchestrator.c payload/source/ws_server.c payload/source/http_server.c payload/source/mqtt_client.c payload/source/codex_ntp.c -lm
+    "$CC" $CFLAGS -Ipayload/source -o "$BIN/codex_daemon" \
+        payload/source/codex_daemon.c \
+        payload/source/webui_server.c \
+        payload/source/webui_utils.c \
+        payload/source/webui_ir.c \
+        payload/source/webui_activity.c \
+        payload/source/webui_bt.c \
+        payload/source/webui_update.c \
+        payload/source/webui_config.c \
+        payload/source/resource_cache.c \
+        payload/source/cJSON.c \
+        payload/source/ir_encoder.c \
+        payload/source/ir_i2s.c \
+        payload/source/hw_action.c \
+        payload/source/orchestrator.c \
+        payload/source/ws_server.c \
+        payload/source/http_server.c \
+        payload/source/mqtt_client.c \
+        payload/source/codex_ntp.c -lm
 }
 
 build_register_ehci() {
@@ -99,7 +117,6 @@ case "$TARGET" in
     all)
         build_dhcpd
         build_portal
-        build_webui
         build_sntp
         build_daemon
         build_register_ehci
@@ -118,9 +135,9 @@ cp -f "$BIN"/codex_* "$BIN"/register_ehci "$BIN"/mknod "$OUT"/ 2>/dev/null || tr
 
 echo "Updating MANIFEST.txt and FILES..."
 cd "$BIN"
-file codex_btstack codex_dhcpd codex_portal codex_webui codex_daemon codex_sntp dropbearmulti register_ehci mknod > FILES 2>/dev/null || true
-ls -l codex_btstack codex_dhcpd codex_portal codex_webui codex_daemon codex_sntp dropbearmulti register_ehci mknod > MANIFEST.txt 2>/dev/null || true
-md5sum codex_btstack codex_dhcpd codex_portal codex_webui codex_daemon codex_sntp dropbearmulti register_ehci mknod >> MANIFEST.txt 2>/dev/null || true
+file codex_btstack codex_dhcpd codex_portal codex_daemon codex_sntp dropbearmulti register_ehci mknod > FILES 2>/dev/null || true
+ls -l codex_btstack codex_dhcpd codex_portal codex_daemon codex_sntp dropbearmulti register_ehci mknod > MANIFEST.txt 2>/dev/null || true
+md5sum codex_btstack codex_dhcpd codex_portal codex_daemon codex_sntp dropbearmulti register_ehci mknod >> MANIFEST.txt 2>/dev/null || true
 
 echo "=== Build finished successfully! ==="
 ls -lh "$BIN"/codex_* "$BIN"/register_ehci "$BIN"/mknod

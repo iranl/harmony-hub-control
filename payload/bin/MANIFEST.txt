@@ -1,17 +1,15 @@
 -rwxrwxrwx 1 yr yr 462752 Sep 28 11:55 codex_btstack
--rwxrwxrwx 1 yr yr 230116 Sep 28 11:54 codex_daemon
+-rwxrwxrwx 1 yr yr 866712 Sep 28 13:05 codex_daemon
 -rwxrwxrwx 1 yr yr 104168 Sep 28 11:52 codex_dhcpd
 -rwxrwxrwx 1 yr yr 109548 Sep 28 11:52 codex_portal
 -rwxrwxrwx 1 yr yr 126832 Sep 28 11:53 codex_sntp
--rwxrwxrwx 1 yr yr 808544 Sep 28 11:53 codex_webui
 -rwxrwxrwx 1 yr yr 577296 Sep 12 22:53 dropbearmulti
 -rwxrwxrwx 1 yr yr 100172 Sep 28 11:54 mknod
 -rwxrwxrwx 1 yr yr 104084 Sep 28 11:54 register_ehci
 15806bd0b6f2b542999cf224275530f7  codex_btstack
 2f0a6fc6303743eeccc77d1b93e7253f  codex_dhcpd
 bd1a7e51f476ea3a680741ca9b321b14  codex_portal
-dbce7568f442332bb7b5add75101ef42  codex_webui
-a253d609baedf7a52463e3aaea1ebb4b  codex_daemon
+e1d60fd9a8c312781d02400f96d7753e  codex_daemon
 4ec8b7e8adf48b781aa90a0ba920f77a  codex_sntp
 3733327fd04bca282dbf06f33da0bf6c  dropbearmulti
 70473b13f0075a0f30fdbfe086561141  register_ehci

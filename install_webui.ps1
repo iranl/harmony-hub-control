@@ -227,7 +227,7 @@ function Upload-Bytes([string]$LocalPath, [string]$RemotePath, [string]$Mode) {
     $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $LocalPath))
     $dir = Split-RemoteDir $RemotePath
     $tmp = "$RemotePath.tmp-handoff-$PID"
-    $cmd = "mkdir -p $(Remote-Quote $dir) && cat > $(Remote-Quote $tmp) && mv $(Remote-Quote $tmp) $(Remote-Quote $RemotePath) && chmod $Mode $(Remote-Quote $RemotePath)"
+    $cmd = "mkdir -p $(Remote-Quote $dir) && cat > $(Remote-Quote $tmp) && chmod $Mode $(Remote-Quote $tmp) && mv -f $(Remote-Quote $tmp) $(Remote-Quote $RemotePath) && (/bin/busybox sync 2>/dev/null || true)"
     Invoke-Remote $cmd $bytes ([Math]::Max(90000, 45000 + [int]($bytes.Length / 12000))) | Out-Null
     Info "$RemotePath written (bytes=$($bytes.Length) md5=$localMd5)"
 }
@@ -456,8 +456,8 @@ Remove-Item -LiteralPath $backupFolder -Recurse -Force
 $backupTar = $backupZip
 Info "backup saved locally: $backupZip ($((Get-Item $backupZip).Length) bytes, $($existingFiles.Count) files)"
 
-# Clean up legacy flash backups and unused test artifacts on hub
-Invoke-Remote "rm -rf /data/codex-backups /data/codex/bin/*.tmp-handoff* /data/*.tmp-handoff* /cache/*.log /cache/bin /data/codex/cloud_blocker.conf /data/codex/bt_backend.conf /opt/luaworks/tasks/connectserver/netservicestarter.lua /data/codex/bin/pair_b25.sh /data/codex/bin/do_pair.sh /data/codex/bin/test_ble_diag /data/codex/bin/test_smp /data/codex/bin/test_hci_sniff /data/codex/bin/codex_ir_send 2>/dev/null || true" $null 15000 | Out-Null
+# Clean up legacy flash backups, unused test artifacts, and kill running binaries to avoid ETXTBSY
+Invoke-Remote "killall -9 luaworks luadraws lua codex_daemon codex_webui codex_btstack 2>/dev/null || true; rm -rf /data/codex-backups /data/codex/bin/*.tmp-handoff* /data/*.tmp-handoff* /cache/*.log /cache/bin /data/codex/cloud_blocker.conf /data/codex/bt_backend.conf /opt/luaworks/tasks/connectserver/netservicestarter.lua /data/codex/bin/pair_b25.sh /data/codex/bin/do_pair.sh /data/codex/bin/test_ble_diag /data/codex/bin/test_smp /data/codex/bin/test_hci_sniff /data/codex/bin/codex_ir_send /data/codex/bin/codex_webui 2>/dev/null || true" $null 15000 | Out-Null
 
 Step "Uploading binaries"
 if (Test-Path -LiteralPath (Join-Path $Payload "bin\codex_daemon")) {
@@ -473,7 +473,6 @@ if (Test-Path -LiteralPath (Join-Path $Payload "bin\codex_sntp")) {
 }
 
 Upload-Bytes (Join-Path $Payload "bin\codex_portal") "/data/codex/bin/codex_portal" "755"
-Upload-Bytes (Join-Path $Payload "bin\codex_webui") "/data/codex/bin/codex_webui" "755"
 if (Test-Path -LiteralPath (Join-Path $Payload "bin\register_ehci")) {
     Upload-Bytes (Join-Path $Payload "bin\register_ehci") "/data/codex/bin/register_ehci" "755"
 }
@@ -518,7 +517,7 @@ else {
 }
 
 Step "Post-install permissions and startup"
-$post = "rm -rf /pkg/codexmqtt /data/codex/cloud_blocker.conf /data/codex/bt_backend.conf /opt/luaworks/tasks/connectserver/netservicestarter.lua /data/codex/bin/codex_hbus /data/codex/bin/codex_hal_ltcp /data/codex/bin/codex_bthid_keyboard /data/codex/bin/codex_bthid_remote /data/codex/bin/switch_bt.sh /data/codex/switch_bt.sh 2>/dev/null || true; " +
+$post = "rm -rf /pkg/codexmqtt /data/codex/cloud_blocker.conf /data/codex/bt_backend.conf /opt/luaworks/tasks/connectserver/netservicestarter.lua /data/codex/bin/codex_hbus /data/codex/bin/codex_hal_ltcp /data/codex/bin/codex_bthid_keyboard /data/codex/bin/codex_bthid_remote /data/codex/bin/switch_bt.sh /data/codex/switch_bt.sh /data/codex/bin/codex_webui /data/codex/mknod_bin /data/codex/mknod /data/codex/g_serial.ko 2>/dev/null || true; " +
 "mkdir -p /mnt/data/usb_eth /data/codex/bin /data/codex/modules /etc/dropbear /home/root/.ssh /data/codexmqtt; " +
 "ln -sf /data/codex/bin/register_ehci /mnt/data/usb_eth/register_ehci 2>/dev/null || true; " +
 "ln -sf /mnt/data/usb_eth /data/codex/usb_eth 2>/dev/null || true; " +
@@ -532,19 +531,15 @@ $post = "rm -rf /pkg/codexmqtt /data/codex/cloud_blocker.conf /data/codex/bt_bac
 "chmod 644 /data/codex/modules/*.ko /mnt/data/usb_eth/*.ko 2>/dev/null || true; " +
 "ln -sf dropbearmulti /data/codex/bin/dropbear; " +
 "ln -sf dropbearmulti /data/codex/bin/dropbearkey; " +
-"chmod 755 /data/codex/bin/dropbearmulti /data/codex/bin/codex_dhcpd /data/codex/bin/codex_btstack /data/codex/bin/codex_sntp /data/codex/bin/codex_portal /data/codex/bin/codex_webui /data/codex/bin/codex_daemon /data/codex/bin/mknod /data/codex/init.sh /data/codex/bt_reconnect.sh /data/codex/recovery_ap.sh /data/codex/network_manager.sh /usr/sbin/dropbear /usr/sbin/dropbearkey /etc/init.d/rcS.local 2>/dev/null || true; " +
+"chmod 755 /data/codex/bin/dropbearmulti /data/codex/bin/codex_dhcpd /data/codex/bin/codex_btstack /data/codex/bin/codex_sntp /data/codex/bin/codex_portal /data/codex/bin/codex_daemon /data/codex/bin/mknod /data/codex/init.sh /data/codex/bt_reconnect.sh /data/codex/recovery_ap.sh /data/codex/network_manager.sh /usr/sbin/dropbear /usr/sbin/dropbearkey /etc/init.d/rcS.local 2>/dev/null || true; " +
 "chmod 600 /data/codexmqtt/config.json 2>/dev/null || true; " +
-"chmod -x /usr/sbin/bluetoothd 2>/dev/null || true; " +
-"/bin/busybox sync 2>/dev/null || true"
+"chmod -x /usr/sbin/bluetoothd 2>/dev/null || true"
 Invoke-Remote $post $null 60000 | Out-Null
 
 $start = "killall -9 luaworks luadraws lua netmonitor codex_webui codex_daemon codex_btstack codex_bthid_remote codex_bthid_keyboard bluetoothd 2>/dev/null || true; " +
 "chmod -x /opt/luaworks/luaworks 2>/dev/null || true; " +
 "chmod -x /usr/sbin/bluetoothd 2>/dev/null || true; " +
 "if ! ps | grep '[d]ropbear' >/dev/null 2>&1; then /usr/sbin/dropbear -R -p 22; fi; " +
-"if [ -x /data/codex/bin/codex_webui ]; then " +
-"/data/codex/bin/codex_webui 8080 >> /tmp/codex-init.log 2>&1 & " +
-"fi; " +
 "if [ -x /data/codex/bin/codex_daemon ]; then " +
 "/data/codex/bin/codex_daemon 8089 >> /tmp/codex-init.log 2>&1 & " +
 "fi; " +
@@ -552,7 +547,7 @@ $start = "killall -9 luaworks luadraws lua netmonitor codex_webui codex_daemon c
 "/data/codex/bin/codex_btstack >> /tmp/codex-init.log 2>&1 & " +
 "fi; " +
 "sleep 1; " +
-"ps | grep '[c]odex_webui' || true; ps | grep '[c]odex_daemon' || true; ps | grep '[c]odex_btstack' || true; ps | grep '[d]ropbear' || true"
+"ps | grep '[c]odex_daemon' || true; ps | grep '[c]odex_btstack' || true; ps | grep '[d]ropbear' || true"
 $running = Invoke-Remote $start $null 90000
 Write-Host $running.Trim()
 
@@ -561,7 +556,6 @@ $expected = [ordered]@{
     "/data/codex/bin/dropbearmulti" = (Get-FileHash -Algorithm MD5 -LiteralPath (Join-Path $Payload "bin\dropbearmulti")).Hash.ToLowerInvariant()
     "/data/codex/bin/codex_dhcpd"   = (Get-FileHash -Algorithm MD5 -LiteralPath (Join-Path $Payload "bin\codex_dhcpd")).Hash.ToLowerInvariant()
     "/data/codex/bin/codex_portal"  = (Get-FileHash -Algorithm MD5 -LiteralPath (Join-Path $Payload "bin\codex_portal")).Hash.ToLowerInvariant()
-    "/data/codex/bin/codex_webui"   = (Get-FileHash -Algorithm MD5 -LiteralPath (Join-Path $Payload "bin\codex_webui")).Hash.ToLowerInvariant()
 }
 if (Test-Path -LiteralPath (Join-Path $Payload "bin\codex_btstack")) {
     $expected["/data/codex/bin/codex_btstack"] = (Get-FileHash -Algorithm MD5 -LiteralPath (Join-Path $Payload "bin\codex_btstack")).Hash.ToLowerInvariant()

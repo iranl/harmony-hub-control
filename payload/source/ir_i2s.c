@@ -53,6 +53,27 @@ static void i2s_alarm_handler(int sig) {
 /* Nominal ~666kHz sample clock (1.5us/sample before ~16x reference clock quirk) */
 #define I2S_FREQ_CAP 0x00258000
 
+static int s_i2s_tx_fd = -1;
+
+int ir_i2s_init(void) {
+    if (s_i2s_tx_fd >= 0) return 0;
+    s_i2s_tx_fd = open(I2S_DEVICE, O_WRONLY);
+    if (s_i2s_tx_fd < 0) return -1;
+    if (ioctl(s_i2s_tx_fd, I2S_FREQ, I2S_FREQ_CAP) < 0) {
+        close(s_i2s_tx_fd);
+        s_i2s_tx_fd = -1;
+        return -1;
+    }
+    return 0;
+}
+
+void ir_i2s_shutdown(void) {
+    if (s_i2s_tx_fd >= 0) {
+        close(s_i2s_tx_fd);
+        s_i2s_tx_fd = -1;
+    }
+}
+
 static inline uint32_t get_spp(uint32_t period_ns) {
     if (period_ns >= 12000) return 12;
     if (period_ns >= 3000)  return 10;
@@ -166,7 +187,10 @@ int ir_i2s_blast_words(uint32_t carrier_hz, uint8_t duty,
         return -EBUSY;
     }
 
-    int fd = open(I2S_DEVICE, O_WRONLY);
+    if (s_i2s_tx_fd < 0) {
+        s_i2s_tx_fd = open(I2S_DEVICE, O_WRONLY);
+    }
+    int fd = s_i2s_tx_fd;
     if (fd < 0) {
         i2s_lock_release(lock_fd);
         free(bs.buf);
@@ -174,7 +198,8 @@ int ir_i2s_blast_words(uint32_t carrier_hz, uint8_t duty,
     }
 
     if (ioctl(fd, I2S_FREQ, (int)stereo_clk) < 0) {
-        close(fd);
+        close(s_i2s_tx_fd);
+        s_i2s_tx_fd = -1;
         i2s_lock_release(lock_fd);
         free(bs.buf);
         return -4;
@@ -191,7 +216,8 @@ int ir_i2s_blast_words(uint32_t carrier_hz, uint8_t duty,
     if (g_i2s_timeout || written != (ssize_t)bs.len) {
         alarm(0);
         sigaction(SIGALRM, &sa_old, NULL);
-        close(fd);
+        close(s_i2s_tx_fd);
+        s_i2s_tx_fd = -1;
         i2s_lock_release(lock_fd);
         free(bs.buf);
         return -5;
@@ -204,7 +230,8 @@ int ir_i2s_blast_words(uint32_t carrier_hz, uint8_t duty,
     if (ioctl(fd, I2S_START, start_arg) < 0) {
         alarm(0);
         sigaction(SIGALRM, &sa_old, NULL);
-        close(fd);
+        close(s_i2s_tx_fd);
+        s_i2s_tx_fd = -1;
         i2s_lock_release(lock_fd);
         free(bs.buf);
         return -6;
@@ -222,7 +249,7 @@ int ir_i2s_blast_words(uint32_t carrier_hz, uint8_t duty,
     alarm(0);
     sigaction(SIGALRM, &sa_old, NULL);
 
-    close(fd);
+    /* Keep persistent s_i2s_tx_fd open across blasts */
     i2s_lock_release(lock_fd);
     free(bs.buf);
     return g_i2s_timeout ? -ETIMEDOUT : 0;
@@ -286,6 +313,9 @@ int ir_i2s_capture(char *out, size_t outlen, unsigned int timeout_sec) {
         snprintf(out, outlen, "I2S hardware is busy (locked)");
         return -EBUSY;
     }
+
+    /* Release persistent TX handle before switching to RX capture */
+    ir_i2s_shutdown();
 
     int fd = open(I2S_DEVICE, O_RDONLY | O_NONBLOCK);
     if (fd < 0) {
@@ -402,6 +432,15 @@ int ir_i2s_capture(char *out, size_t outlen, unsigned int timeout_sec) {
         return -5;
     }
 
+    int ret = ir_i2s_decode_capture(raw_buf, raw_len, out, outlen);
+    free(raw_buf);
+    return ret;
+}
+
+int ir_i2s_decode_capture(const uint8_t *raw_buf, size_t raw_len, char *out, size_t outlen) {
+    if (!raw_buf || raw_len == 0 || !out || outlen < 32) return -1;
+    out[0] = '\0';
+
     /* Bit-by-bit MSB-first: find first Mark run with >= 300 samples (~28 us) to skip optical glitches */
     size_t bit_total = raw_len * 8;
     size_t bit_idx = 0;
@@ -449,7 +488,6 @@ int ir_i2s_capture(char *out, size_t outlen, unsigned int timeout_sec) {
     }
 
     if (!found_start) {
-        free(raw_buf);
         snprintf(out, outlen, "No IR signal detected (idle bitstream)");
         return -6;
     }
@@ -457,7 +495,6 @@ int ir_i2s_capture(char *out, size_t outlen, unsigned int timeout_sec) {
     /* Run-length decode */
     uint32_t *runs = (uint32_t *)malloc(4096 * sizeof(uint32_t));
     if (!runs) {
-        free(raw_buf);
         snprintf(out, outlen, "Out of memory allocating runs buffer");
         return -7;
     }
@@ -481,7 +518,6 @@ int ir_i2s_capture(char *out, size_t outlen, unsigned int timeout_sec) {
     if (cur_run > 0 && run_count < 4096) {
         runs[run_count++] = cur_run;
     }
-    free(raw_buf);
 
     if (run_count < 8) {
         free(runs);

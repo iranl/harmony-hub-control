@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include "hw_action.h"
 
-#define ORCH_MAX_STEPS 64
+#define ORCH_MAX_STEPS 128
 #define ORCH_POWEROFF_ID "-1"
 
 typedef enum {

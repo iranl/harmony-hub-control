@@ -25,6 +25,9 @@
 #include "webui_config.h"
 #include "webui_activity.h"
 #include "webui_html.h"
+#include "orchestrator.h"
+#include "ws_server.h"
+#include "mqtt_client.h"
 
 static const char *DEFAULT_ACTIVITY_LIST =
     "{\"Activities\":[{\"Activity\":{\"Id-\":-1,\"Name\":\"PowerOff\",\"ActivityOrder\":0,"
@@ -55,34 +58,8 @@ void activity_cache_invalidate(void) {
 static int s_activity_lock_fd = -1;
 
 int activity_is_transitioning(char *target_out, size_t target_len) {
-    if (s_activity_lock_fd >= 0) {
-        if (target_out && target_len) target_out[0] = '\0';
-        return 1;
-    }
-    int fd = open(ACTIVITY_LOCK_FILE, O_RDWR);
-    if (fd < 0) return 0;
-    if (flock(fd, LOCK_EX | LOCK_NB) == 0) {
-        /* Lock successfully acquired -> stale or unused file */
-        flock(fd, LOCK_UN);
-        close(fd);
-        unlink(ACTIVITY_LOCK_FILE);
-        return 0;
-    }
-    /* Lock is held by another process -> transitioning */
-    if (target_out && target_len > 0) {
-        target_out[0] = '\0';
-        char buf[128] = {0};
-        ssize_t r = pread(fd, buf, sizeof(buf) - 1, 0);
-        if (r > 0) {
-            int pid = 0;
-            char target[32] = "";
-            if (sscanf(buf, "%d %31s", &pid, target) >= 2) {
-                snprintf(target_out, target_len, "%s", target);
-            }
-        }
-    }
-    close(fd);
-    return 1;
+    if (target_out && target_len > 0) target_out[0] = '\0';
+    return orch_is_busy();
 }
 
 #define ACTIVITY_STEP_FILE "/tmp/codex_activity_step"
@@ -94,21 +71,8 @@ void broadcast_activity_progress(const char *act_id, int state, int step, int to
         fclose(sf);
     }
 
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) return;
-    struct sockaddr_in addr;
-    struct timeval tv = { .tv_sec = 0, .tv_usec = 100000 };
-    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(8089);
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
-        close(fd);
-        return;
-    }
     cJSON *ap_obj = cJSON_CreateObject();
+    if (!ap_obj) return;
     cJSON_AddStringToObject(ap_obj, "type", "activity_progress");
     cJSON_AddStringToObject(ap_obj, "activity", act_id ? act_id : "");
     cJSON_AddNumberToObject(ap_obj, "state", state);
@@ -117,20 +81,11 @@ void broadcast_activity_progress(const char *act_id, int state, int step, int to
     cJSON_AddStringToObject(ap_obj, "desc", desc ? desc : "");
     char *body = cJSON_PrintUnformatted(ap_obj);
     cJSON_Delete(ap_obj);
-    if (!body) { close(fd); return; }
-    char req[768];
-    snprintf(req, sizeof(req),
-             "POST /api/activity-progress HTTP/1.1\r\n"
-             "Host: 127.0.0.1:8089\r\n"
-             "Content-Type: application/json\r\n"
-             "Content-Length: %zu\r\n"
-             "Connection: close\r\n\r\n%s",
-             strlen(body), body);
-    send(fd, req, strlen(req), MSG_NOSIGNAL);
+    if (!body) return;
+
+    ws_broadcast_text(body);
+    mqtt_publish("harmony/hub/activity/status", body, 1);
     free(body);
-    char dummy[128];
-    recv(fd, dummy, sizeof(dummy) - 1, 0);
-    close(fd);
 }
 
 void activity_get_transition_step(int *step, int *total, char *desc, size_t desc_len) {
@@ -1335,7 +1290,7 @@ void render_activities_json(int fd) {
 }
 
 void render_activity_start_json(int fd, const struct request *req) {
-    char id[64], reply[1024];
+    char id[64];
     form_value(req->body, "id", id, sizeof(id));
     if (!id[0]) json_string(req->body, "id", id, sizeof(id));
     if (!id[0]) {
@@ -1346,45 +1301,36 @@ void render_activity_start_json(int fd, const struct request *req) {
         cJSON_Delete(resp);
         return;
     }
-    int rc = activity_run_start(id, reply, sizeof(reply));
+    int rc = orch_switch_activity(id, 0, NULL, 0);
     cJSON *resp = cJSON_CreateObject();
     if (rc == -2) {
         cJSON_AddBoolToObject(resp, "ok", 0);
         cJSON_AddStringToObject(resp, "error", "Activity transition already in progress");
-        cJSON_AddStringToObject(resp, "reply", reply[0] ? reply : "Activity switch in progress");
+        cJSON_AddStringToObject(resp, "reply", "Activity switch in progress");
         send_cjson_resp(fd, "409 Conflict", resp);
     } else {
         cJSON_AddBoolToObject(resp, "ok", rc == 0);
         cJSON_AddStringToObject(resp, "id", id);
-        cJSON_AddStringToObject(resp, "reply", reply[0] ? reply : "ok");
+        cJSON_AddStringToObject(resp, "reply", rc == 0 ? "ok" : "failed to switch activity");
         send_cjson_resp(fd, rc == 0 ? "200 OK" : "400 Bad Request", resp);
     }
     cJSON_Delete(resp);
-    if (rc == 0) {
-        shutdown(fd, SHUT_WR);
-        activity_run_transition(id);
-    }
 }
 
 void render_activity_stop_json(int fd) {
-    char reply[1024];
-    int rc = activity_run_stop(reply, sizeof(reply));
+    int rc = orch_power_off(0, NULL, 0);
     cJSON *resp = cJSON_CreateObject();
     if (rc == -2) {
         cJSON_AddBoolToObject(resp, "ok", 0);
         cJSON_AddStringToObject(resp, "error", "Activity transition already in progress");
-        cJSON_AddStringToObject(resp, "reply", reply[0] ? reply : "Activity switch in progress");
+        cJSON_AddStringToObject(resp, "reply", "Activity switch in progress");
         send_cjson_resp(fd, "409 Conflict", resp);
     } else {
         cJSON_AddBoolToObject(resp, "ok", rc == 0);
-        cJSON_AddStringToObject(resp, "reply", reply[0] ? reply : "ok");
+        cJSON_AddStringToObject(resp, "reply", rc == 0 ? "ok" : "failed to power off");
         send_cjson_resp(fd, rc == 0 ? "200 OK" : "400 Bad Request", resp);
     }
     cJSON_Delete(resp);
-    if (rc == 0) {
-        shutdown(fd, SHUT_WR);
-        activity_run_transition("-1");
-    }
 }
 
 void render_activity_save_json(int fd, const struct request *req) {
@@ -1507,26 +1453,18 @@ void render_activity_test_sequence_json(int fd, const struct request *req) {
 }
 
 void handle_activity_start(int fd, const struct request *req) {
-    char id[32], reply[1024], msg[1152];
+    char id[32], msg[1152];
     form_value(req->body, "id", id, sizeof(id));
-    int rc = activity_run_start(id, reply, sizeof(reply));
-    snprintf(msg, sizeof(msg), "Started activity %s: %s", id[0] ? id : "PowerOff", reply[0] ? reply : "ok");
+    int rc = orch_switch_activity(id, 0, NULL, 0);
+    snprintf(msg, sizeof(msg), "Started activity %s: %s", id[0] ? id : "PowerOff", rc == 0 ? "ok" : (rc == -2 ? "already in progress" : "failed"));
     render_page(fd, req, msg);
-    if (rc == 0) {
-        shutdown(fd, SHUT_WR);
-        activity_run_transition(id);
-    }
 }
 
 void handle_activity_stop(int fd, const struct request *req) {
-    char reply[1024], msg[1152];
-    int rc = activity_run_stop(reply, sizeof(reply));
-    snprintf(msg, sizeof(msg), "Stopped activity (PowerOff): %s", reply[0] ? reply : "ok");
+    char msg[1152];
+    int rc = orch_power_off(0, NULL, 0);
+    snprintf(msg, sizeof(msg), "Stopped activity (PowerOff): %s", rc == 0 ? "ok" : (rc == -2 ? "already in progress" : "failed"));
     render_page(fd, req, msg);
-    if (rc == 0) {
-        shutdown(fd, SHUT_WR);
-        activity_run_transition("-1");
-    }
 }
 
 void handle_activity_save(int fd, const struct request *req) {

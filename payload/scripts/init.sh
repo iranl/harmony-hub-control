@@ -20,7 +20,8 @@ fi
 # 1. Clean up legacy flash artifacts to minimize flash wear and reclaim space
 rm -rf /data/codex-backups /data/codex/bin/*.tmp-handoff* /data/*.tmp-handoff* 2>/dev/null || true
 rm -rf /cache/*.log /cache/bin /cache/codex-init.log /tmp/codex_bthid_remote.pid 2>/dev/null || true
-rm -f /data/codex/bin/pair_b25.sh /data/codex/bin/do_pair.sh /data/codex/bin/test_ble_diag /data/codex/bin/test_smp /data/codex/bin/test_hci_sniff /data/codex/bin/codex_ir_send 2>/dev/null || true
+rm -f /data/codex/bin/pair_b25.sh /data/codex/bin/do_pair.sh /data/codex/bin/test_ble_diag /data/codex/bin/test_smp /data/codex/bin/test_hci_sniff /data/codex/bin/codex_ir_send /data/codex/bin/codex_webui 2>/dev/null || true
+rm -f /data/codex/g_serial.ko /data/codex/mknod_bin /data/codex/mknod 2>/dev/null || true
 
 # 2. Disable and kill unneeded stock Logitech runtime (frees ~12MB RAM)
 chmod -x /opt/luaworks/luaworks 2>/dev/null || true
@@ -91,18 +92,7 @@ fi
   rm -f "$BOOT_FAILS"
 ) &
 
-# 6. Web UI (HTML frontend on 8080) and Core Daemon (orchestrator/MQTT on 8089)
-(
-  while true; do
-    if [ -x /data/codex/bin/codex_webui ]; then
-      if ! pidof codex_webui >/dev/null 2>&1; then
-        echo "$(date) Starting codex_webui..." >> "$LOG"
-        /data/codex/bin/codex_webui 8080 >> "$LOG" 2>&1
-      fi
-    fi
-    sleep 5
-  done
-) &
+# 6. Unified Codex Daemon (WebUI on 8080, Orchestrator/WS/MQTT on 8089)
 (
   while true; do
     if [ -x /data/codex/bin/codex_daemon ]; then

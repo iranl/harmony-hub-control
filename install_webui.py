@@ -395,7 +395,6 @@ class Installer:
             self.upload_bytes(PAYLOAD / "bin" / "mknod", "/data/codex/bin/mknod", "755")
 
         self.upload_bytes(PAYLOAD / "bin" / "codex_portal", "/data/codex/bin/codex_portal", "755")
-        self.upload_bytes(PAYLOAD / "bin" / "codex_webui", "/data/codex/bin/codex_webui", "755")
         self.upload_bytes(PAYLOAD / "scripts" / "dropbear", "/usr/sbin/dropbear", "755")
         self.upload_bytes(PAYLOAD / "scripts" / "dropbearkey", "/usr/sbin/dropbearkey", "755")
 
@@ -428,7 +427,7 @@ class Installer:
 
         step("Post-install permissions and startup")
         post = (
-            "rm -rf /pkg/codexmqtt /data/codex/cloud_blocker.conf /data/codex/bt_backend.conf /opt/luaworks/tasks/connectserver/netservicestarter.lua /data/codex/bin/codex_hbus /data/codex/bin/codex_hal_ltcp /data/codex/bin/codex_bthid_keyboard /data/codex/bin/codex_bthid_remote /data/codex/bin/switch_bt.sh /data/codex/switch_bt.sh 2>/dev/null || true; "
+            "rm -rf /pkg/codexmqtt /data/codex/cloud_blocker.conf /data/codex/bt_backend.conf /opt/luaworks/tasks/connectserver/netservicestarter.lua /data/codex/bin/codex_hbus /data/codex/bin/codex_hal_ltcp /data/codex/bin/codex_bthid_keyboard /data/codex/bin/codex_bthid_remote /data/codex/bin/switch_bt.sh /data/codex/switch_bt.sh /data/codex/bin/codex_webui /data/codex/mknod_bin /data/codex/mknod /data/codex/g_serial.ko 2>/dev/null || true; "
             "mkdir -p /mnt/data/usb_eth /data/codex/bin /data/codex/modules /etc/dropbear /home/root/.ssh /data/codexmqtt; "
             "ln -sf /data/codex/bin/register_ehci /mnt/data/usb_eth/register_ehci 2>/dev/null || true; "
             "ln -sf /mnt/data/usb_eth /data/codex/usb_eth 2>/dev/null || true; "
@@ -444,12 +443,11 @@ class Installer:
             "ln -sf dropbearmulti /data/codex/bin/dropbearkey; "
             "chmod 755 /data/codex/bin/dropbearmulti /data/codex/bin/codex_dhcpd "
             "/data/codex/bin/codex_btstack /data/codex/bin/codex_sntp "
-            "/data/codex/bin/codex_portal /data/codex/bin/codex_webui /data/codex/bin/codex_daemon /data/codex/bin/mknod /data/codex/init.sh "
+            "/data/codex/bin/codex_portal /data/codex/bin/codex_daemon /data/codex/bin/mknod /data/codex/init.sh "
             "/data/codex/bt_reconnect.sh /data/codex/recovery_ap.sh /data/codex/network_manager.sh /usr/sbin/dropbear "
             "/usr/sbin/dropbearkey /etc/init.d/rcS.local 2>/dev/null || true; "
             "chmod 600 /data/codexmqtt/config.json 2>/dev/null || true; "
-            "chmod -x /usr/sbin/bluetoothd 2>/dev/null || true; "
-            "/bin/busybox sync 2>/dev/null || true"
+            "chmod -x /usr/sbin/bluetoothd 2>/dev/null || true"
         )
         self.run_remote(post, timeout=60, quiet=True)
 
@@ -458,9 +456,6 @@ class Installer:
             "chmod -x /opt/luaworks/luaworks 2>/dev/null || true; "
             "chmod -x /usr/sbin/bluetoothd 2>/dev/null || true; "
             "if ! ps | grep '[d]ropbear' >/dev/null 2>&1; then /usr/sbin/dropbear -R -p 22; fi; "
-            "if [ -x /data/codex/bin/codex_webui ]; then "
-            "/data/codex/bin/codex_webui 8080 >> /tmp/codex-init.log 2>&1 & "
-            "fi; "
             "if [ -x /data/codex/bin/codex_daemon ]; then "
             "/data/codex/bin/codex_daemon 8089 >> /tmp/codex-init.log 2>&1 & "
             "fi; "
@@ -468,7 +463,7 @@ class Installer:
             "/data/codex/bin/codex_btstack >> /tmp/codex-init.log 2>&1 & "
             "fi; "
             "sleep 1; "
-            "ps | grep '[c]odex_webui' || true; ps | grep '[c]odex_daemon' || true; ps | grep '[c]odex_btstack' || true; ps | grep '[d]ropbear' || true"
+            "ps | grep '[c]odex_daemon' || true; ps | grep '[c]odex_btstack' || true; ps | grep '[d]ropbear' || true"
         )
         print(self.run_remote(start, timeout=90).strip())
 
@@ -477,7 +472,6 @@ class Installer:
             "/data/codex/bin/dropbearmulti": local_md5(PAYLOAD / "bin" / "dropbearmulti"),
             "/data/codex/bin/codex_dhcpd": local_md5(PAYLOAD / "bin" / "codex_dhcpd"),
             "/data/codex/bin/codex_portal": local_md5(PAYLOAD / "bin" / "codex_portal"),
-            "/data/codex/bin/codex_webui": local_md5(PAYLOAD / "bin" / "codex_webui"),
         }
         if (PAYLOAD / "bin" / "codex_btstack").is_file():
             expected["/data/codex/bin/codex_btstack"] = local_md5(PAYLOAD / "bin" / "codex_btstack")
