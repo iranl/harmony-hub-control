@@ -4,6 +4,7 @@
 #define CODEX_WEBUI_TYPES_H
 
 #define BT_REMOTE_MAP_FILE "/data/codex/bt_remote_map.json"
+#define WEB_REMOTE_LAYOUT_FILE "/data/codex/web_remote_layout.json"
 #define MQTT_CONFIG "/data/codexmqtt/config.json"
 #define WPA_CONFIG "/etc/wpa_supplicant.conf"
 #define ETHERNET_CONFIG "/data/codex/ethernet.conf"

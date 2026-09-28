@@ -324,7 +324,7 @@ async function main() {
   const updateUi = await evaluate(`(async () => {
     showView('system');
     const repo = document.querySelector('#updateRepo');
-    if (repo) repo.value = 'https://raw.githubusercontent.com/Ripthulhu/harmony-hub-control/main/payload/bin/';
+    if (repo) repo.value = 'https://raw.githubusercontent.com/iranl/harmony-hub-control/main/payload/bin/';
     if (typeof updateCheckRepo !== 'function') return { ok: false, error: 'updateCheckRepo is not available' };
     await updateCheckRepo();
     const log = document.querySelector('#updateLog')?.textContent || '';

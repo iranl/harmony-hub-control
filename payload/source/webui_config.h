@@ -30,5 +30,7 @@ void handle_ethernet(int fd, const struct request *req);
 void handle_system(int fd, const struct request *req);
 void handle_import(int fd, const struct request *req);
 void render_import_validate_json(int fd, const struct request *req);
+void render_web_remote_layout_json(int fd);
+void render_web_remote_layout_save_json(int fd, const struct request *req);
 
 #endif /* WEBUI_CONFIG_H */

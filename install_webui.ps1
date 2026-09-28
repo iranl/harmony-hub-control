@@ -366,6 +366,7 @@ $candidatePaths = @(
     "/data/codex/bin/dropbearmulti",
     "/data/codex/bin/register_ehci",
     "/data/codex/bin/mknod",
+    "/data/codex/bin/check_space",
     "/data/codex/modules/g_serial.ko",
     "/mnt/data/usb_eth/register_ehci",
     "/mnt/data/usb_eth/start_usb_eth.sh",
@@ -478,6 +479,11 @@ if (Test-Path -LiteralPath (Join-Path $Payload "bin\register_ehci")) {
 }
 if (Test-Path -LiteralPath (Join-Path $Payload "bin\mknod")) {
     Upload-Bytes (Join-Path $Payload "bin\mknod") "/data/codex/bin/mknod" "755"
+}
+if (Test-Path -LiteralPath (Join-Path $Payload "bin\check_space")) {
+    Upload-Bytes (Join-Path $Payload "bin\check_space") "/data/codex/bin/check_space" "755"
+} elseif (Test-Path -LiteralPath (Join-Path $Root "scratch\check_space")) {
+    Upload-Bytes (Join-Path $Root "scratch\check_space") "/data/codex/bin/check_space" "755"
 }
 Upload-Bytes (Join-Path $Payload "scripts\dropbear") "/usr/sbin/dropbear" "755"
 Upload-Bytes (Join-Path $Payload "scripts\dropbearkey") "/usr/sbin/dropbearkey" "755"

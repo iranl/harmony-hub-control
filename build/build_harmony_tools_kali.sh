@@ -29,6 +29,7 @@ STRIP=mips-buildroot-linux-uclibc-strip
 
 "$CC" -Os -static -s -o "$OUT/codex_dhcpd" "$SRC/codex_dhcpd.c"
 "$CC" -Os -static -s -o "$OUT/codex_portal" "$SRC/codex_portal.c"
+"$CC" -Os -static -s -o "$OUT/check_space" "$SRC/check_space.c"
 "$CC" -Os -static -s -I"$SRC" -o "$OUT/codex_sntp" "$SRC/codex_sntp_main.c" "$SRC/codex_ntp.c"
 "$CC" -Os -static -s -I"$SRC" -o "$OUT/codex_daemon" \
     "$SRC/codex_daemon.c" \
@@ -85,7 +86,7 @@ cp dropbearmulti "$OUT/dropbearmulti"
 cd "$OUT"
 ln -sf dropbearmulti dropbear
 ln -sf dropbearmulti dropbearkey
-md5sum codex_dhcpd codex_portal codex_sntp codex_daemon dropbearmulti > MD5SUMS
-file codex_dhcpd codex_portal codex_sntp codex_daemon dropbearmulti > FILES
-ls -l codex_dhcpd codex_portal codex_sntp codex_daemon dropbearmulti > MANIFEST.txt
+md5sum codex_dhcpd codex_portal codex_sntp codex_daemon dropbearmulti check_space > MD5SUMS
+file codex_dhcpd codex_portal codex_sntp codex_daemon dropbearmulti check_space > FILES
+ls -l codex_dhcpd codex_portal codex_sntp codex_daemon dropbearmulti check_space > MANIFEST.txt
 cat MD5SUMS >> MANIFEST.txt

@@ -264,8 +264,8 @@ void render_update_status_json(int fd) {
     char path[256], md5[40];
     cJSON *resp = cJSON_CreateObject();
     cJSON_AddBoolToObject(resp, "ok", 1);
-    cJSON_AddStringToObject(resp, "repo", "https://github.com/Ripthulhu/harmony-hub-control");
-    cJSON_AddStringToObject(resp, "rawBase", "https://raw.githubusercontent.com/Ripthulhu/harmony-hub-control/main/payload/bin/");
+    cJSON_AddStringToObject(resp, "repo", "https://github.com/iranl/harmony-hub-control");
+    cJSON_AddStringToObject(resp, "rawBase", "https://raw.githubusercontent.com/iranl/harmony-hub-control/main/payload/bin/");
     cJSON *files = cJSON_CreateArray();
     for (i = 0; i < sizeof(UPDATE_FILES) / sizeof(UPDATE_FILES[0]); i++) {
         update_dest_path(UPDATE_FILES[i], path, sizeof(path));

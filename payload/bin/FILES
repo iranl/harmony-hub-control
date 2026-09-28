@@ -1,9 +1,9 @@
 codex_btstack: ELF 32-bit MSB executable, MIPS, MIPS32 version 1 (SYSV), statically linked, stripped
 codex_dhcpd:   ELF 32-bit MSB executable, MIPS, MIPS32 version 1 (SYSV), statically linked, stripped
 codex_portal:  ELF 32-bit MSB executable, MIPS, MIPS32 version 1 (SYSV), statically linked, stripped
-codex_webui:   ELF 32-bit MSB executable, MIPS, MIPS32 version 1 (SYSV), statically linked, stripped
 codex_daemon:  ELF 32-bit MSB executable, MIPS, MIPS32 version 1 (SYSV), statically linked, stripped
 codex_sntp:    ELF 32-bit MSB executable, MIPS, MIPS32 version 1 (SYSV), statically linked, stripped
 dropbearmulti: ELF 32-bit MSB executable, MIPS, MIPS32 version 1 (SYSV), statically linked, stripped
 register_ehci: ELF 32-bit MSB executable, MIPS, MIPS32 version 1 (SYSV), statically linked, stripped
 mknod:         ELF 32-bit MSB executable, MIPS, MIPS32 version 1 (SYSV), statically linked, stripped
+check_space:   ELF 32-bit MSB executable, MIPS, MIPS32 version 1 (SYSV), statically linked, stripped

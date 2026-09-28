@@ -25,8 +25,6 @@
 #include "resource_cache.h"
 #include "hw_action.h"
 #include "ir_i2s.h"
-#include "remote_skin_jpg.h"
-#include "remote_b25_skin_jpg.h"
 
 #include "webui_utils.h"
 #include "webui_ir.h"
@@ -134,6 +132,10 @@ static void handle_client(int client) {
         render_remote_mapping_json(client);
     } else if (strcmp(req.method, "POST") == 0 && strcmp(req.path, "/api/remote-mapping-save") == 0) {
         render_remote_mapping_save_json(client, &req);
+    } else if (strcmp(req.method, "GET") == 0 && strcmp(req.path, "/api/ui-remote-layout") == 0) {
+        render_web_remote_layout_json(client);
+    } else if (strcmp(req.method, "POST") == 0 && strcmp(req.path, "/api/ui-remote-layout") == 0) {
+        render_web_remote_layout_save_json(client, &req);
     } else if (strcmp(req.method, "POST") == 0 && strcmp(req.path, "/api/remote-scan") == 0) {
         render_remote_scan_json(client, &req);
     } else if (strcmp(req.method, "POST") == 0 && strcmp(req.path, "/api/remote-pair") == 0) {

@@ -82,6 +82,82 @@
       <div id="hubsList" class="card-list"></div>
     </section>
 
+    <!-- Advanced Settings View -->
+    <section id="view-settings" class="view-panel">
+      <div class="remote-toolbar" style="margin-bottom: 14px;">
+        <div>
+          <div class="remote-badge">Hub Management</div>
+          <h2 class="remote-title">Advanced Settings</h2>
+        </div>
+      </div>
+
+      <div class="settings-nav-pills" style="display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 4px;">
+        <button type="button" class="btn btn-sm btn-primary set-tab-btn" data-set-tab="sys">System</button>
+        <button type="button" class="btn btn-sm btn-secondary set-tab-btn" data-set-tab="net">Network</button>
+        <button type="button" class="btn btn-sm btn-secondary set-tab-btn" data-set-tab="bt">Bluetooth</button>
+        <button type="button" class="btn btn-sm btn-secondary set-tab-btn" data-set-tab="irlab">IR Lab</button>
+      </div>
+
+      <!-- System Panel -->
+      <div id="set-tab-sys" class="set-tab-content">
+        <div class="card" style="margin-bottom: 12px;">
+          <h3 style="font-size: 14px; margin-bottom: 8px;">Hub System & Maintenance</h3>
+          <div id="sysDiskInfo" style="font-size: 12px; color: var(--text-dim); margin-bottom: 10px; font-family: monospace;">Loading system info...</div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-sm btn-secondary" id="btnCheckUpdate">Check Update</button>
+            <button type="button" class="btn btn-sm btn-danger" id="btnRebootHub">Reboot Hub</button>
+          </div>
+          <div id="sysUpdateMsg" style="font-size: 11px; color: var(--accent); margin-top: 8px;"></div>
+        </div>
+      </div>
+
+      <!-- Network Panel -->
+      <div id="set-tab-net" class="set-tab-content" style="display: none;">
+        <div class="card" style="margin-bottom: 12px;">
+          <h3 style="font-size: 14px; margin-bottom: 8px;">Network Status</h3>
+          <div id="netStatusInfo" style="font-size: 12px; color: var(--text-dim); margin-bottom: 10px; font-family: monospace;">Loading network status...</div>
+          <button type="button" class="btn btn-sm btn-secondary" id="btnScanWifi" style="margin-bottom: 10px;">Scan Wi-Fi</button>
+          <div id="wifiScanResults" class="card-list" style="margin-bottom: 10px;"></div>
+
+          <form id="formJoinWifi" style="display: flex; flex-direction: column; gap: 8px;">
+            <input type="text" id="wifiSsidInput" class="form-control" placeholder="Wi-Fi SSID">
+            <input type="password" id="wifiPskInput" class="form-control" placeholder="Wi-Fi Password">
+            <button type="submit" class="btn btn-sm btn-primary">Save & Apply Wi-Fi</button>
+          </form>
+          <div id="wifiStatusMsg" style="font-size: 11px; margin-top: 6px;"></div>
+        </div>
+      </div>
+
+      <!-- Bluetooth Panel -->
+      <div id="set-tab-bt" class="set-tab-content" style="display: none;">
+        <div class="card" style="margin-bottom: 12px;">
+          <h3 style="font-size: 14px; margin-bottom: 8px;">Bluetooth Devices</h3>
+          <div id="btStatusInfo" style="font-size: 12px; color: var(--text-dim); margin-bottom: 10px;">Loading Bluetooth info...</div>
+          <button type="button" class="btn btn-sm btn-secondary" id="btnScanBt" style="margin-bottom: 10px;">Scan Bluetooth</button>
+          <div id="btDeviceList" class="card-list"></div>
+        </div>
+      </div>
+
+      <!-- IR Lab Panel -->
+      <div id="set-tab-irlab" class="set-tab-content" style="display: none;">
+        <div class="card" style="margin-bottom: 12px;">
+          <h3 style="font-size: 14px; margin-bottom: 8px;">IR Learning Lab</h3>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px;">
+            <select id="irLabDeviceSelect" class="form-control"></select>
+            <input type="text" id="irLabCmdName" class="form-control" placeholder="Command name (e.g. HDMI 1, Power Toggle)">
+            <button type="button" class="btn btn-sm btn-primary" id="btnCaptureIr">Capture IR Signal</button>
+          </div>
+          <div id="irLabCaptureStatus" style="font-size: 12px; color: var(--text-dim); margin-bottom: 8px;">Point remote at hub and press button.</div>
+          <textarea id="irLabRawText" class="form-control" rows="3" readonly placeholder="Captured signal will appear here..." style="font-family: monospace; font-size: 11px; margin-bottom: 8px;"></textarea>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" class="btn btn-sm btn-secondary" id="btnTestLearnedIr">Test Signal</button>
+            <button type="button" class="btn btn-sm btn-primary" id="btnSaveLearnedIr">Save to Device</button>
+          </div>
+          <div id="irLabSaveMsg" style="font-size: 11px; margin-top: 6px;"></div>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- Bottom Navigation Bar -->
@@ -114,6 +190,14 @@
         <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
       </svg>
       <span>Hubs</span>
+    </button>
+
+    <button type="button" class="nav-item" data-tab="settings">
+      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+      <span>Settings</span>
     </button>
   </nav>
 

@@ -84,6 +84,11 @@ build_mknod() {
     "$CC" $CFLAGS -o "$BIN/mknod" payload/source/mknod.c
 }
 
+build_check_space() {
+    echo "[-] Building check_space..."
+    "$CC" $CFLAGS -o "$BIN/check_space" payload/source/check_space.c
+}
+
 build_btstack() {
     echo "[-] Building codex_btstack..."
     "$SCRIPT_DIR/build_btstack.sh"
@@ -114,6 +119,9 @@ case "$TARGET" in
     mknod)
         build_mknod
         ;;
+    check_space)
+        build_check_space
+        ;;
     all)
         build_dhcpd
         build_portal
@@ -121,23 +129,24 @@ case "$TARGET" in
         build_daemon
         build_register_ehci
         build_mknod
+        build_check_space
         build_btstack
         ;;
     *)
         echo "Unknown target: $TARGET"
-        echo "Usage: $0 [all|daemon|webui|sntp|portal|dhcpd|btstack|register_ehci|mknod]"
+        echo "Usage: $0 [all|daemon|webui|sntp|portal|dhcpd|btstack|register_ehci|mknod|check_space]"
         exit 1
         ;;
 esac
 
 echo "Copying binaries to build/output..."
-cp -f "$BIN"/codex_* "$BIN"/register_ehci "$BIN"/mknod "$OUT"/ 2>/dev/null || true
+cp -f "$BIN"/codex_* "$BIN"/register_ehci "$BIN"/mknod "$BIN"/check_space "$OUT"/ 2>/dev/null || true
 
 echo "Updating MANIFEST.txt and FILES..."
 cd "$BIN"
-file codex_btstack codex_dhcpd codex_portal codex_daemon codex_sntp dropbearmulti register_ehci mknod > FILES 2>/dev/null || true
-ls -l codex_btstack codex_dhcpd codex_portal codex_daemon codex_sntp dropbearmulti register_ehci mknod > MANIFEST.txt 2>/dev/null || true
-md5sum codex_btstack codex_dhcpd codex_portal codex_daemon codex_sntp dropbearmulti register_ehci mknod >> MANIFEST.txt 2>/dev/null || true
+file codex_btstack codex_dhcpd codex_portal codex_daemon codex_sntp dropbearmulti register_ehci mknod check_space > FILES 2>/dev/null || true
+ls -l codex_btstack codex_dhcpd codex_portal codex_daemon codex_sntp dropbearmulti register_ehci mknod check_space > MANIFEST.txt 2>/dev/null || true
+md5sum codex_btstack codex_dhcpd codex_portal codex_daemon codex_sntp dropbearmulti register_ehci mknod check_space >> MANIFEST.txt 2>/dev/null || true
 
 echo "=== Build finished successfully! ==="
-ls -lh "$BIN"/codex_* "$BIN"/register_ehci "$BIN"/mknod
+ls -lh "$BIN"/codex_* "$BIN"/register_ehci "$BIN"/mknod "$BIN"/check_space

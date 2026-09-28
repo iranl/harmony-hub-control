@@ -230,4 +230,77 @@ export class HarmonyClient {
       body: JSON.stringify({ text: String(text) })
     });
   }
+
+  /* Advanced / Hub Management APIs */
+  async getNetworkStatus() {
+    return this.request('/api/network-status');
+  }
+
+  async getWifiScan() {
+    return this.request('/api/wifi-scan');
+  }
+
+  async saveWifi(ssid, psk) {
+    return this.request('/wifi', {
+      method: 'POST',
+      body: new URLSearchParams({ ssid: ssid || '', psk: psk || '' })
+    });
+  }
+
+  async getBtStatus() {
+    return this.request('/api/bt-status');
+  }
+
+  async startBtScan() {
+    return this.request('/api/remote-scan', { method: 'POST' });
+  }
+
+  async pairBt(bdaddr, transport = 32) {
+    return this.request('/api/remote-pair', {
+      method: 'POST',
+      body: new URLSearchParams({ bdaddr: bdaddr || '', transport: String(transport) })
+    });
+  }
+
+  async getSystemDisk() {
+    return this.request('/api/disk-space');
+  }
+
+  async getUpdateStatus() {
+    return this.request('/api/update-status');
+  }
+
+  async checkUpdate(force = false) {
+    return this.request('/api/update-check-state', {
+      method: 'POST',
+      body: new URLSearchParams({ check: force ? '1' : '0' })
+    });
+  }
+
+  async rebootHub() {
+    return this.request('/system/reboot', {
+      method: 'POST',
+      body: new URLSearchParams({ action: 'reboot' })
+    });
+  }
+
+  async captureIr() {
+    return this.request('/api/capture', { method: 'POST' });
+  }
+
+  async testLearnedIr(data) {
+    return this.request('/api/ir-test-learned', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data || {})
+    });
+  }
+
+  async saveLearnedCommand(data) {
+    return this.request('/ir/command', {
+      method: 'POST',
+      body: new URLSearchParams(data || {})
+    });
+  }
 }
+

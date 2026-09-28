@@ -1159,3 +1159,79 @@ void handle_import(int fd, const struct request *req) {
     free(payload_buf);
 }
 
+void render_web_remote_layout_json(int fd) {
+    char *raw = read_file_alloc(WEB_REMOTE_LAYOUT_FILE, 1048576, NULL);
+    cJSON *resp = cJSON_CreateObject();
+    if (raw) {
+        cJSON *layouts = cJSON_Parse(raw);
+        free(raw);
+        if (layouts) {
+            cJSON_AddBoolToObject(resp, "ok", 1);
+            cJSON_AddItemToObject(resp, "layouts", layouts);
+        } else {
+            cJSON_AddBoolToObject(resp, "ok", 0);
+            cJSON_AddStringToObject(resp, "message", "Corrupt layout file on hub");
+        }
+    } else {
+        cJSON_AddBoolToObject(resp, "ok", 0);
+        cJSON_AddStringToObject(resp, "message", "No layout saved on hub");
+    }
+    send_cjson_resp(fd, "200 OK", resp);
+    cJSON_Delete(resp);
+}
+
+void render_web_remote_layout_save_json(int fd, const struct request *req) {
+    const char *payload = NULL;
+    char *alloc_buf = NULL;
+    if (req->body && req->body[0] == '{') {
+        payload = req->body;
+    } else if (req->body) {
+        alloc_buf = (char *)malloc(MAX_REQUEST_BODY);
+        if (alloc_buf) {
+            form_value(req->body, "json", alloc_buf, MAX_REQUEST_BODY);
+            if (alloc_buf[0] == '{') payload = alloc_buf;
+        }
+    }
+    cJSON *parsed = payload ? cJSON_Parse(payload) : NULL;
+    if (!parsed) {
+        if (alloc_buf) free(alloc_buf);
+        cJSON *err = cJSON_CreateObject();
+        cJSON_AddBoolToObject(err, "ok", 0);
+        cJSON_AddStringToObject(err, "error", "Invalid JSON payload");
+        send_cjson_resp(fd, "400 Bad Request", err);
+        cJSON_Delete(err);
+        return;
+    }
+    char *out = cJSON_Print(parsed);
+    cJSON_Delete(parsed);
+    if (alloc_buf) free(alloc_buf);
+    if (!out) {
+        cJSON *err = cJSON_CreateObject();
+        cJSON_AddBoolToObject(err, "ok", 0);
+        cJSON_AddStringToObject(err, "error", "Formatting failed");
+        send_cjson_resp(fd, "500 Internal Server Error", err);
+        cJSON_Delete(err);
+        return;
+    }
+    FILE *f = fopen(WEB_REMOTE_LAYOUT_FILE, "w");
+    if (!f) {
+        free(out);
+        cJSON *err = cJSON_CreateObject();
+        cJSON_AddBoolToObject(err, "ok", 0);
+        cJSON_AddStringToObject(err, "error", "Failed to write layout file");
+        send_cjson_resp(fd, "500 Internal Server Error", err);
+        cJSON_Delete(err);
+        return;
+    }
+    fputs(out, f);
+    fclose(f);
+    free(out);
+    chmod(WEB_REMOTE_LAYOUT_FILE, 0644);
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", 1);
+    cJSON_AddStringToObject(resp, "message", "Remote layout saved to hub");
+    send_cjson_resp(fd, "200 OK", resp);
+    cJSON_Delete(resp);
+}
+
+

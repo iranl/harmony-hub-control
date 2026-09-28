@@ -126,6 +126,224 @@ class HarmonyApp {
         this.renderDeviceRemote();
       });
     }
+
+    // Settings Sub-tab Switching
+    document.querySelectorAll('.set-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const sub = btn.getAttribute('data-set-tab');
+        document.querySelectorAll('.set-tab-btn').forEach(b => {
+          b.classList.toggle('btn-primary', b === btn);
+          b.classList.toggle('btn-secondary', b !== btn);
+        });
+        document.querySelectorAll('.set-tab-content').forEach(p => {
+          p.style.display = p.id === `set-tab-${sub}` ? 'block' : 'none';
+        });
+        if (sub === 'sys') this.loadSystemInfo();
+        if (sub === 'net') this.loadNetworkInfo();
+        if (sub === 'bt') this.loadBtInfo();
+        if (sub === 'irlab') this.loadIrLabInfo();
+      });
+    });
+
+    // Reboot Hub
+    const btnReboot = document.getElementById('btnRebootHub');
+    if (btnReboot) {
+      btnReboot.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to reboot the Harmony Hub?')) return;
+        try {
+          btnReboot.disabled = true;
+          btnReboot.textContent = 'Rebooting...';
+          await this.client.rebootHub();
+          alert('Reboot command sent to hub.');
+        } catch (err) {
+          alert('Reboot failed: ' + err.message);
+        } finally {
+          btnReboot.disabled = false;
+          btnReboot.textContent = 'Reboot Hub';
+        }
+      });
+    }
+
+    // Check Update
+    const btnCheck = document.getElementById('btnCheckUpdate');
+    if (btnCheck) {
+      btnCheck.addEventListener('click', async () => {
+        const msg = document.getElementById('sysUpdateMsg');
+        try {
+          btnCheck.disabled = true;
+          if (msg) msg.textContent = 'Checking GitHub for updates...';
+          const res = await this.client.checkUpdate(true);
+          if (msg) msg.textContent = res.message || 'Check complete.';
+        } catch (err) {
+          if (msg) msg.textContent = 'Update check failed: ' + err.message;
+        } finally {
+          btnCheck.disabled = false;
+        }
+      });
+    }
+
+    // Scan Wi-Fi & Join
+    const btnScanWifi = document.getElementById('btnScanWifi');
+    if (btnScanWifi) {
+      btnScanWifi.addEventListener('click', async () => {
+        const list = document.getElementById('wifiScanResults');
+        if (list) list.innerHTML = '<span style="font-size:12px;color:var(--text-dim)">Scanning Wi-Fi...</span>';
+        try {
+          const res = await this.client.getWifiScan();
+          const ssids = res.ssids || res.networks || [];
+          if (!ssids.length) {
+            if (list) list.innerHTML = '<span style="font-size:12px;color:var(--text-dim)">No networks found.</span>';
+            return;
+          }
+          if (list) {
+            list.innerHTML = ssids.map(s => {
+              const name = typeof s === 'string' ? s : (s.ssid || 'Unknown');
+              return `<button type="button" class="btn btn-xs btn-secondary wifi-ssid-pick" data-ssid="${name}" style="margin:2px;">${name}</button>`;
+            }).join(' ');
+            list.querySelectorAll('.wifi-ssid-pick').forEach(b => {
+              b.addEventListener('click', () => {
+                const input = document.getElementById('wifiSsidInput');
+                if (input) input.value = b.getAttribute('data-ssid');
+              });
+            });
+          }
+        } catch (err) {
+          if (list) list.innerHTML = `<span style="font-size:12px;color:var(--danger)">Scan failed: ${err.message}</span>`;
+        }
+      });
+    }
+
+    const formJoinWifi = document.getElementById('formJoinWifi');
+    if (formJoinWifi) {
+      formJoinWifi.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const ssid = document.getElementById('wifiSsidInput')?.value.trim();
+        const psk = document.getElementById('wifiPskInput')?.value;
+        const msg = document.getElementById('wifiStatusMsg');
+        if (!ssid) return;
+        try {
+          if (msg) msg.textContent = 'Saving Wi-Fi settings...';
+          await this.client.saveWifi(ssid, psk);
+          if (msg) msg.innerHTML = '<span style="color:var(--success)">Saved! Reboot hub to apply.</span>';
+        } catch (err) {
+          if (msg) msg.innerHTML = `<span style="color:var(--danger)">Error: ${err.message}</span>`;
+        }
+      });
+    }
+
+    // Bluetooth Scan
+    const btnScanBt = document.getElementById('btnScanBt');
+    if (btnScanBt) {
+      btnScanBt.addEventListener('click', async () => {
+        const list = document.getElementById('btDeviceList');
+        if (list) list.innerHTML = '<span style="font-size:12px;color:var(--text-dim)">Scanning Bluetooth...</span>';
+        try {
+          await this.client.startBtScan();
+          setTimeout(async () => {
+            const res = await this.client.getBtStatus();
+            const devs = res.devices || [];
+            if (!devs.length) {
+              if (list) list.innerHTML = '<span style="font-size:12px;color:var(--text-dim)">No Bluetooth devices found.</span>';
+              return;
+            }
+            if (list) {
+              list.innerHTML = devs.map(d => `
+                <div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;margin-bottom:6px;">
+                  <div>
+                    <strong>${d.name || 'Unknown'}</strong>
+                    <div style="font-size:11px;color:var(--text-dim)">${d.bdaddr || d.address}</div>
+                  </div>
+                  <button type="button" class="btn btn-xs btn-primary btn-pair-bt" data-addr="${d.bdaddr || d.address}">Pair</button>
+                </div>
+              `).join('');
+              list.querySelectorAll('.btn-pair-bt').forEach(b => {
+                b.addEventListener('click', async () => {
+                  const addr = b.getAttribute('data-addr');
+                  b.textContent = 'Pairing...';
+                  try {
+                    await this.client.pairBt(addr);
+                    b.textContent = 'Paired!';
+                  } catch (err) {
+                    alert('Pair failed: ' + err.message);
+                    b.textContent = 'Pair';
+                  }
+                });
+              });
+            }
+          }, 3000);
+        } catch (err) {
+          if (list) list.innerHTML = `<span style="font-size:12px;color:var(--danger)">BT Scan failed: ${err.message}</span>`;
+        }
+      });
+    }
+
+    // IR Learning
+    const btnCapture = document.getElementById('btnCaptureIr');
+    if (btnCapture) {
+      btnCapture.addEventListener('click', async () => {
+        const statusEl = document.getElementById('irLabCaptureStatus');
+        const rawEl = document.getElementById('irLabRawText');
+        if (statusEl) statusEl.textContent = 'Listening for IR signal (press remote button)...';
+        try {
+          const res = await this.client.captureIr();
+          if (res.raw) {
+            if (rawEl) rawEl.value = res.raw;
+            if (statusEl) statusEl.textContent = `Captured signal! Mode: ${res.mode || 'raw'}`;
+          } else {
+            if (statusEl) statusEl.textContent = 'No signal received or timed out.';
+          }
+        } catch (err) {
+          if (statusEl) statusEl.textContent = 'Capture failed: ' + err.message;
+        }
+      });
+    }
+
+    const btnTestIr = document.getElementById('btnTestLearnedIr');
+    if (btnTestIr) {
+      btnTestIr.addEventListener('click', async () => {
+        const devSelect = document.getElementById('irLabDeviceSelect');
+        const rawEl = document.getElementById('irLabRawText');
+        const devId = devSelect?.value;
+        const raw = rawEl?.value?.trim();
+        const statusEl = document.getElementById('irLabCaptureStatus');
+        if (!raw) {
+          alert('Please capture a signal first.');
+          return;
+        }
+        try {
+          if (statusEl) statusEl.textContent = 'Testing signal...';
+          const res = await this.client.testLearnedIr({ deviceId: devId, raw: raw });
+          if (statusEl) statusEl.textContent = res.message || 'Test signal transmitted!';
+        } catch (err) {
+          if (statusEl) statusEl.textContent = 'Test failed: ' + err.message;
+        }
+      });
+    }
+
+    const btnSaveIr = document.getElementById('btnSaveLearnedIr');
+    if (btnSaveIr) {
+      btnSaveIr.addEventListener('click', async () => {
+        const devSelect = document.getElementById('irLabDeviceSelect');
+        const nameInput = document.getElementById('irLabCmdName');
+        const rawEl = document.getElementById('irLabRawText');
+        const msg = document.getElementById('irLabSaveMsg');
+        const devId = devSelect?.value;
+        const name = nameInput?.value?.trim();
+        const raw = rawEl?.value?.trim();
+        if (!devId || !name || !raw) {
+          alert('Please select device, enter command name, and capture signal.');
+          return;
+        }
+        try {
+          if (msg) msg.textContent = 'Saving command...';
+          await this.client.saveLearnedCommand({ deviceId: devId, name: name, raw: raw });
+          if (msg) msg.innerHTML = '<span style="color:var(--success)">Command saved to device!</span>';
+          await this.recoverHubInventory();
+        } catch (err) {
+          if (msg) msg.innerHTML = `<span style="color:var(--danger)">Save failed: ${err.message}</span>`;
+        }
+      });
+    }
   }
 
   async loadActiveHub() {
@@ -388,6 +606,9 @@ class HarmonyApp {
       case 'hubs':
         this.renderHubsList();
         break;
+      case 'settings':
+        this.renderSettings();
+        break;
       default:
         this.switchTab('activity-remote');
         break;
@@ -612,6 +833,51 @@ class HarmonyApp {
       closeModal();
       this.renderHubsList();
     });
+  }
+
+  renderSettings() {
+    this.loadSystemInfo();
+    this.loadIrLabInfo();
+  }
+
+  async loadSystemInfo() {
+    const el = document.getElementById('sysDiskInfo');
+    if (!el) return;
+    try {
+      const res = await this.client.getSystemDisk();
+      el.textContent = res.output || 'System info retrieved.';
+    } catch (err) {
+      el.textContent = `Could not fetch system info: ${err.message}`;
+    }
+  }
+
+  async loadNetworkInfo() {
+    const el = document.getElementById('netStatusInfo');
+    if (!el) return;
+    try {
+      const res = await this.client.getNetworkStatus();
+      el.textContent = JSON.stringify(res, null, 2);
+    } catch (err) {
+      el.textContent = `Could not fetch network status: ${err.message}`;
+    }
+  }
+
+  async loadBtInfo() {
+    const el = document.getElementById('btStatusInfo');
+    if (!el) return;
+    try {
+      const res = await this.client.getBtStatus();
+      el.textContent = res.state ? `BT State: ${res.state}` : 'Bluetooth ready.';
+    } catch (err) {
+      el.textContent = `Could not fetch BT info: ${err.message}`;
+    }
+  }
+
+  loadIrLabInfo() {
+    const select = document.getElementById('irLabDeviceSelect');
+    if (!select) return;
+    const devs = this.inventory.devices || [];
+    select.innerHTML = devs.map(d => `<option value="${d.id}">${d.name || d.model || d.id}</option>`).join('');
   }
 }
 
