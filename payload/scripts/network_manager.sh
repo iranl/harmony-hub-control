@@ -2,9 +2,11 @@
 # Codex Network Manager - Ethernet / USB Host & Wi-Fi supervisor
 # Handles 15s USB gadget safety boot, Ethernet initialization, and Wi-Fi fallback.
 
-PATH=/data/codex/bin:/mnt/data/usb_eth:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+PATH=/data/codex/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 CONF=/data/codex/ethernet.conf
-WPA_CONF=/etc/wpa_supplicant.conf
+WPA_CONF=/etc/wpa_supplicant.ath0.conf
+[ -f "$WPA_CONF" ] || WPA_CONF=/etc/wpa_supplicant.conf
+
 LOG=/tmp/codex-network.log
 STATE_FILE=/tmp/codex_active_net_state
 
@@ -15,7 +17,7 @@ log() {
 # Load configuration with safe defaults
 ETH_ENABLED=0
 ETH_FALLBACK_WIFI=1
-ETH_USB_SERIAL=0
+ETH_USB_SERIAL=1
 ETH_MODE="dhcp"
 ETH_IP=""
 ETH_NETMASK=""
@@ -31,7 +33,7 @@ load_config() {
       case "$key" in
         ETH_ENABLED) ETH_ENABLED="$val" ;;
         ETH_FALLBACK_WIFI) ETH_FALLBACK_WIFI="$val" ;;
-        ETH_USB_SERIAL|USB_SERIAL_CONSOLE) ETH_USB_SERIAL="$val" ;;
+        ETH_USB_SERIAL|USB_SERIAL_CONSOLE) ETH_USB_SERIAL=1 ;;
         ETH_MODE) ETH_MODE="$val" ;;
         ETH_IP) ETH_IP="$val" ;;
         ETH_NETMASK) ETH_NETMASK="$val" ;;
@@ -42,59 +44,18 @@ load_config() {
   fi
 }
 
-get_udc_interrupts() {
-  grep -iE 'ath_udc|udc|ar7240_usb' /proc/interrupts 2>/dev/null | awk '{print $2}' | tr -d ' \r\n'
-}
-
-# Check if a PC is connected to USB gadget mode
-# A USB Host sends SOF tokens every 1ms and bus resets / setup packets.
-# A wall charger or unconnected cable generates 0 USB host interrupts.
-is_pc_connected() {
-  # 1. Sample interrupt counter over 1 second
-  c1=$(get_udc_interrupts)
-  if [ -n "$c1" ]; then
-    sleep 1
-    c2=$(get_udc_interrupts)
-    if [ -n "$c2" ] && [ "$c2" -gt "$((c1 + 15))" ]; then
-      log "PC host detected via USB interrupts ($c1 -> $c2)"
-      return 0
-    fi
-  fi
-
-  # 2. Check sysfs state if available (configured or addressed by a host)
-  for s in /sys/devices/platform/ath_udc*/state /sys/class/udc/*/state; do
-    if [ -f "$s" ]; then
-      st=$(cat "$s" 2>/dev/null)
-      case "$st" in
-        *configured*|*addressed*)
-          log "PC host detected via sysfs state ($st)"
-          return 0
-          ;;
-      esac
-    fi
-  done
-
-  return 1
-}
 
 find_eth_interface() {
   # Ethernet on Harmony Hub is strictly USB-based.
-  # Ignore internal SoC eth0 (ag71xx platform device without physical port).
+  # Ignore internal SoC eth0 and devboard eth1 (no physical ports).
   for ifpath in /sys/class/net/*; do
     [ -d "$ifpath" ] || continue
-    ifname=$(basename "$ifpath")
+    ifname="${ifpath##*/}"
     case "$ifname" in
       eth*|usb*)
-        if [ "$ifname" != "wifi0" ] && [ "$ifname" != "ath0" ] && [ "$ifname" != "ath1" ] && [ "$ifname" != "lo" ]; then
-          if [ -e "$ifpath/device" ]; then
-            devtarget=$(readlink "$ifpath/device" 2>/dev/null)
-            case "$devtarget" in
-              *usb*|*ehci*)
-                echo "$ifname"
-                return 0
-                ;;
-            esac
-          fi
+        if [ "$ifname" != "eth0" ] && [ "$ifname" != "eth1" ] && [ "$ifname" != "wifi0" ] && [ "$ifname" != "ath0" ] && [ "$ifname" != "lo" ]; then
+          echo "$ifname"
+          return 0
         fi
         ;;
     esac
@@ -133,10 +94,10 @@ ensure_wifi() {
 
 start_eth() {
   log "Switching USB to host mode and loading drivers..."
-  if [ -x /mnt/data/usb_eth/start_usb_eth.sh ]; then
-    /mnt/data/usb_eth/start_usb_eth.sh >> "$LOG" 2>&1
-  elif [ -x /data/codex/bin/start_usb_eth.sh ]; then
+  if [ -x /data/codex/bin/start_usb_eth.sh ]; then
     /data/codex/bin/start_usb_eth.sh >> "$LOG" 2>&1
+  elif [ -x /data/codex/start_usb_eth.sh ]; then
+    /data/codex/start_usb_eth.sh >> "$LOG" 2>&1
   elif [ -x /usr/sbin/start_usb_eth.sh ]; then
     /usr/sbin/start_usb_eth.sh >> "$LOG" 2>&1
   else
@@ -207,64 +168,22 @@ start_eth() {
   fi
 }
 
-start_usb_serial() {
-  log "Activating USB Serial Console (/dev/ttyGS0)..."
-  # Stop gadgetfs/usbhid if running
-  killall -9 usbgadget usbhid 2>/dev/null || true
-  umount /dev/gadget 2>/dev/null || true
-  rmmod gadgetfs 2>/dev/null || true
-
-  # Ensure controller platform device is active
-  if [ -x /data/codex/bin/register_ehci ]; then
-    /data/codex/bin/register_ehci >> "$LOG" 2>&1 || true
-  fi
-
-  # Load g_serial module
-  if ! lsmod | grep -q g_serial; then
-    if [ -f /data/codex/modules/g_serial.ko ]; then
-      insmod /data/codex/modules/g_serial.ko >> "$LOG" 2>&1 || true
-    fi
-  fi
-
-  # Create device node if missing
-  if [ ! -c /dev/ttyGS0 ]; then
-    if [ -x /data/codex/bin/mknod ]; then
-      /data/codex/bin/mknod /dev/ttyGS0 c 254 0 >> "$LOG" 2>&1 || true
-    fi
-  fi
-
-  # Start shell on ttyGS0 if not already running
-  if [ -c /dev/ttyGS0 ]; then
-    if ! ps | grep '[s]h -l' | grep -q 'ttyGS0'; then
-      ( while true; do /bin/sh -l </dev/ttyGS0 >/dev/ttyGS0 2>&1; sleep 1; done ) &
-      log "Started root login shell loop on /dev/ttyGS0"
-    fi
-  fi
-}
-
-stop_usb_serial() {
-  log "Stopping USB Serial Console..."
-  killall -9 sh 2>/dev/null || true
-  rmmod g_serial 2>/dev/null || true
-}
-
 stop_eth() {
-  log "Stopping Ethernet and restoring USB gadget mode..."
-  if [ -x /mnt/data/usb_eth/stop_usb_eth.sh ]; then
-    /mnt/data/usb_eth/stop_usb_eth.sh >> "$LOG" 2>&1
-  elif [ -x /data/codex/bin/stop_usb_eth.sh ]; then
+  log "Stopping Ethernet..."
+  if [ -x /data/codex/bin/stop_usb_eth.sh ]; then
     /data/codex/bin/stop_usb_eth.sh >> "$LOG" 2>&1
+  elif [ -x /data/codex/stop_usb_eth.sh ]; then
+    /data/codex/stop_usb_eth.sh >> "$LOG" 2>&1
   elif [ -x /usr/sbin/stop_usb_eth.sh ]; then
     /usr/sbin/stop_usb_eth.sh >> "$LOG" 2>&1
-  fi
-  if [ "$ETH_USB_SERIAL" = "1" ]; then
-    start_usb_serial
   fi
 }
 
 # Background watchdog: monitors Ethernet link and handles Wi-Fi failover / recovery
 run_monitor() {
+  echo "$$" > /var/run/codex_net_monitor.pid
   while true; do
+
     sleep 8
     load_config
     [ "$ETH_ENABLED" = "1" ] || break
@@ -312,54 +231,30 @@ run_monitor() {
   done
 }
 
-# Boot procedure with 15-second USB Gadget safety delay
 do_boot() {
   log "Boot initialization started..."
   load_config
 
   if [ "$ETH_ENABLED" != "1" ]; then
-    log "Ethernet is disabled in configuration. Keeping USB gadget and Wi-Fi."
-    if [ "$ETH_USB_SERIAL" = "1" ]; then
-      start_usb_serial
-    fi
+    log "Ethernet is disabled in configuration. Keeping Wi-Fi active."
     ensure_wifi
     exit 0
   fi
 
-  log "Ethernet is enabled. USB gadget active on boot; waiting 15s for PC connection..."
-  pc_detected=0
-  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-    if is_pc_connected; then
-      pc_detected=1
-      break
-    fi
-    sleep 1
-  done
+  log "Ethernet is enabled. Waiting 15s for system boot to settle before switching USB..."
+  sleep 15
 
-  if [ "$pc_detected" = "1" ]; then
-    log "PC host connected to USB gadget! Aborting switch to Ethernet to preserve PC sync."
-    if [ "$ETH_USB_SERIAL" = "1" ]; then
-      start_usb_serial
-    fi
-    if [ "$ETH_FALLBACK_WIFI" = "1" ]; then
-      log "Ensuring Wi-Fi is active while connected to PC..."
-      ensure_wifi
-    fi
-    exit 0
-  fi
-
-  log "No PC connected within 15 seconds. Unloading USB gadget and starting Ethernet..."
+  log "Starting Ethernet (USB Host mode)..."
   if start_eth; then
     run_monitor &
   else
-    log "Ethernet connection failed!"
+    log "Ethernet start failed! Falling back to Wi-Fi..."
+    stop_eth
     if [ "$ETH_FALLBACK_WIFI" = "1" ]; then
       log "Fallback to Wi-Fi enabled. Connecting Wi-Fi..."
       ensure_wifi
       echo "ath0:wifi-fallback:" > "$STATE_FILE"
       run_monitor &
-    else
-      log "Fallback to Wi-Fi is disabled. Hub remaining offline."
     fi
   fi
 }
@@ -369,11 +264,14 @@ do_apply() {
   load_config
 
   # Kill existing monitor loop if running
-  killall network_manager.sh 2>/dev/null || true
+  if [ -f /var/run/codex_net_monitor.pid ]; then
+    kill -9 "$(cat /var/run/codex_net_monitor.pid 2>/dev/null)" 2>/dev/null || true
+    rm -f /var/run/codex_net_monitor.pid
+  fi
+
 
   if [ "$ETH_ENABLED" = "1" ]; then
     log "Enabling Ethernet..."
-    stop_usb_serial
     if start_eth; then
       run_monitor &
     else
@@ -384,16 +282,12 @@ do_apply() {
       fi
     fi
   else
-    log "Disabling Ethernet. Restoring USB gadget and Wi-Fi..."
+    log "Disabling Ethernet..."
     stop_eth
-    if [ "$ETH_USB_SERIAL" = "1" ]; then
-      start_usb_serial
-    else
-      stop_usb_serial
-    fi
     ensure_wifi
   fi
 }
+
 
 case "$1" in
   boot)
@@ -408,12 +302,6 @@ case "$1" in
     ;;
   stop_eth)
     stop_eth
-    ;;
-  start_serial)
-    start_usb_serial
-    ;;
-  stop_serial)
-    stop_usb_serial
     ;;
   ensure_wifi)
     ensure_wifi

@@ -1109,10 +1109,9 @@ static void handle_ws_client_message(int cfd) {
     char buf[4096];
     int opcode = 0;
     int len = ws_read_frame(cfd, buf, sizeof(buf), &opcode);
-    if (len <= 0) {
-        if (len < 0 || opcode == WS_OP_CLOSE) {
-            ws_remove_client(cfd);
-        }
+    if (len <= 0 || opcode == WS_OP_CLOSE) {
+        close(cfd);
+        ws_remove_client(cfd);
         return;
     }
 

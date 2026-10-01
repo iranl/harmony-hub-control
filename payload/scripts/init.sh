@@ -8,6 +8,7 @@ echo "$(date) codex init start" > "$LOG"
 touch /etc/nowatchdog 2>/dev/null || true
 chmod -x /usr/bin/watchdog 2>/dev/null || true
 killall -9 watchdog 2>/dev/null || true
+
 export LD_PRELOAD=""
 
 # Set kernel printk loglevel according to debug logging config
@@ -66,31 +67,6 @@ elif [ -x /data/codex/bin/network_manager.sh ]; then
   /data/codex/bin/network_manager.sh boot >> "$LOG" 2>&1 &
 fi
 
-# 5.5 Boot crash watchdog & automatic rollback
-BOOT_FAILS=/data/codex/boot_fails
-if [ -f "$BOOT_FAILS" ]; then
-  COUNT=$(cat "$BOOT_FAILS" 2>/dev/null || echo 0)
-  COUNT=$((COUNT + 1))
-else
-  COUNT=1
-fi
-echo "$COUNT" > "$BOOT_FAILS" 2>/dev/null || true
-
-if [ "$COUNT" -ge 3 ]; then
-  echo "$(date) Boot crash loop detected ($COUNT fails). Attempting rollback..." >> "$LOG"
-  LATEST_BACKUP=$(ls -td /data/codex/updates/backup/* 2>/dev/null | head -n 1)
-  if [ -n "$LATEST_BACKUP" ] && [ -d "$LATEST_BACKUP" ]; then
-    echo "$(date) Restoring backup from $LATEST_BACKUP" >> "$LOG"
-    cp -f "$LATEST_BACKUP"/* /data/codex/bin/ 2>/dev/null || true
-    chmod 755 /data/codex/bin/* 2>/dev/null || true
-    rm -f "$BOOT_FAILS"
-  fi
-fi
-
-(
-  sleep 60
-  rm -f "$BOOT_FAILS"
-) &
 
 # 6. Unified Codex Daemon (WebUI on 8080, Orchestrator/WS/MQTT on 8089)
 (
@@ -109,17 +85,34 @@ fi
 chmod -x /usr/sbin/bluetoothd 2>/dev/null || true
 killall -9 bluetoothd codex_bthid_remote codex_bthid_keyboard 2>/dev/null || true
 rm -f /data/codex/bin/codex_bthid_remote /data/codex/bin/codex_bthid_keyboard 2>/dev/null || true
-if [ -x /data/codex/bin/codex_btstack ]; then
-  echo "$(date) Starting BTstack backend" >> "$LOG"
-  /data/codex/bin/codex_btstack >> "$LOG" 2>&1 &
-fi
+(
+  # Wait up to 30 seconds for hci0 to be initialized by rcS.local
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
+    if hciconfig hci0 2>/dev/null | grep -q 'UP'; then
+      break
+    fi
+    sleep 1
+  done
 
-# 8. Recovery AP Monitor
-if [ -x /data/codex/recovery_ap.sh ]; then
-  if [ ! -f /var/run/codex-recovery-monitor.pid ]; then
-    /data/codex/recovery_ap.sh monitor >> "$LOG" 2>&1 &
-    echo $! > /var/run/codex-recovery-monitor.pid
-  fi
-fi
+  while true; do
+    if [ -x /data/codex/bin/codex_btstack ]; then
+      if ! pidof codex_btstack >/dev/null 2>&1; then
+        hciconfig hci0 up 2>/dev/null || true
+        echo "$(date) Starting BTstack backend..." >> "$LOG"
+        /data/codex/bin/codex_btstack >> "$LOG" 2>&1
+      fi
+    fi
+# 8. CC2544 RF Daemon (Logitech HAL replacement for Elite Remote RF)
+(
+  while true; do
+    if [ -x /data/codex/bin/codex_rf ]; then
+      if ! pidof codex_rf >/dev/null 2>&1; then
+        echo "$(date) Starting codex_rf daemon..." >> "$LOG"
+        /data/codex/bin/codex_rf >> "$LOG" 2>&1
+      fi
+    fi
+    sleep 5
+  done
+) &
 
 echo "$(date) codex init done" >> "$LOG"

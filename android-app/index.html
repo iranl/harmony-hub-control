@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0c0f14">
-  <title>Harmony Remote</title>
+  <title>Harmony Hub Control</title>
   <link rel="icon" type="image/png" href="./favicon.png">
   <link rel="apple-touch-icon" href="./icon.png">
   <link rel="stylesheet" href="./src/style.css">
@@ -14,10 +14,23 @@
   <!-- Top App Header -->
   <header class="app-header">
     <div class="top-bar">
-      <div class="brand-group">
-        <div class="brand-icon">H</div>
-        <div class="brand-title">Harmony Hub</div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button type="button" class="btn-icon-menu" id="btnOpenDrawer" aria-label="Open Navigation Menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+        <div class="brand-group">
+          <div class="brand-icon">H</div>
+          <div>
+            <div class="brand-title">Harmony Hub</div>
+            <div style="font-size: 10px; color: var(--text-dim); line-height: 1;">Local console</div>
+          </div>
+        </div>
       </div>
+
       <button type="button" class="hub-selector-btn" id="hubSelectorBtn" aria-label="Select Harmony Hub">
         <span id="activeHubStatusDot" class="hub-status-dot"></span>
         <span id="activeHubLabel">Select Hub</span>
@@ -27,9 +40,7 @@
 
     <!-- Active Activity Banner -->
     <div class="activity-banner" id="activityBanner">
-      <div class="banner-activities-scroll" id="bannerActivitiesList">
-        <!-- Dynamic activity buttons populated here -->
-      </div>
+      <div class="banner-activities-scroll" id="bannerActivitiesList"></div>
       <button type="button" id="btnBannerPowerOff" class="btn btn-xs btn-danger" style="display: inline-flex; align-items: center; gap: 4px;">
         Power Off
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -38,7 +49,7 @@
         </svg>
       </button>
 
-      <!-- Sleek Activity Transition Progress (replaces buttons during transition) -->
+      <!-- Activity Transition Progress -->
       <div class="banner-transition-card" id="bannerTransitionCard" style="display: none;">
         <div class="banner-transition-info">
           <div class="banner-transition-title" id="bannerTransitionTitle">
@@ -54,23 +65,1398 @@
     </div>
   </header>
 
+  <!-- Side Navigation Drawer (Full Options) -->
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+  <aside class="app-drawer" id="appDrawer">
+    <div class="drawer-header">
+      <div class="brand-group">
+        <div class="brand-icon">H</div>
+        <div>
+          <div class="brand-title">Harmony Hub</div>
+          <div style="font-size: 11px; color: var(--text-dim);">Main Navigation</div>
+        </div>
+      </div>
+      <button type="button" class="btn-drawer-close" id="btnCloseDrawer" aria-label="Close Menu">✕</button>
+    </div>
+
+    <div class="drawer-menu-list">
+      <button type="button" class="drawer-item" data-view-target="overview">
+        <span class="drawer-icon">D</span>
+        <div><strong>Dashboard</strong><small>Hub health & status</small></div>
+      </button>
+      <button type="button" class="drawer-item" data-view-target="activity-remote">
+        <span class="drawer-icon">AR</span>
+        <div><strong>Activity Remote</strong><small>Live active control</small></div>
+      </button>
+      <button type="button" class="drawer-item" data-view-target="activities">
+        <span class="drawer-icon">A</span>
+        <div><strong>Activities</strong><small>Run & sequence setup</small></div>
+      </button>
+      <button type="button" class="drawer-item" data-view-target="control">
+        <span class="drawer-icon">R</span>
+        <div><strong>Control</strong><small>Tactile remote & keypad</small></div>
+      </button>
+      <button type="button" class="drawer-item" data-view-target="ir">
+        <span class="drawer-icon">IR</span>
+        <div><strong>IR Setup</strong><small>Add remotes, learn, DB</small></div>
+      </button>
+      <button type="button" class="drawer-item" data-view-target="lab">
+        <span class="drawer-icon">L</span>
+        <div><strong>Bulk IR Test</strong><small>Queue & batch send IR</small></div>
+      </button>
+      <button type="button" class="drawer-item" data-view-target="bluetooth">
+        <span class="drawer-icon">BT</span>
+        <div><strong>Bluetooth</strong><small>Keyboard, macros & hosts</small></div>
+      </button>
+      <button type="button" class="drawer-item" data-view-target="remotes">
+        <span class="drawer-icon">RC</span>
+        <div><strong>BT Remote</strong><small>Homatics B25 button map</small></div>
+      </button>
+      <button type="button" class="drawer-item" data-view-target="mqtt">
+        <span class="drawer-icon">M</span>
+        <div><strong>MQTT</strong><small>Home Assistant broker</small></div>
+      </button>
+      <button type="button" class="drawer-item" data-view-target="network">
+        <span class="drawer-icon">N</span>
+        <div><strong>Network</strong><small>Wi-Fi & USB Ethernet</small></div>
+      </button>
+      <button type="button" class="drawer-item" data-view-target="backup">
+        <span class="drawer-icon">B</span>
+        <div><strong>Backup</strong><small>Import & export configs</small></div>
+      </button>
+      <button type="button" class="drawer-item" data-view-target="system">
+        <span class="drawer-icon">S</span>
+        <div><strong>System</strong><small>Logs, update & reboot</small></div>
+      </button>
+      <div style="height: 1px; background: var(--border); margin: 8px 0;"></div>
+      <button type="button" class="drawer-item" data-view-target="hubs">
+        <span class="drawer-icon">H</span>
+        <div><strong>Saved Hubs</strong><small>Multi-hub manager</small></div>
+      </button>
+    </div>
+  </aside>
+
   <!-- Main Content Container -->
   <main class="app-content">
 
-    <!-- Activity Remote View -->
+    <!-- 1. Activity Remote View (Default) -->
     <section id="view-activity-remote" class="view-panel active">
       <div id="activityRemoteContainer"></div>
     </section>
 
-    <!-- Per-Device Remote View -->
-    <section id="view-device-remote" class="view-panel">
-      <div class="device-select-bar" style="margin-bottom: 12px; display: flex; gap: 8px; align-items: center;">
-        <select id="deviceRemoteSelect" class="form-control" style="flex: 1;"></select>
+    <!-- 2. Dashboard / Overview View -->
+    <section id="view-overview" class="view-panel">
+      <div class="section-head">
+        <div>
+          <h2>Dashboard</h2>
+          <div class="section-lead">Hub health, saved devices, and service status.</div>
+        </div>
       </div>
-      <div id="deviceRemoteContainer"></div>
+
+      <div class="dashboard-cards-grid">
+        <div class="stat-card">
+          <div class="stat-label">Firmware</div>
+          <div class="stat-value" id="dashFirmwareVal">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Uptime</div>
+          <div class="stat-value" id="dashUptimeVal">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">MQTT</div>
+          <div class="stat-value"><span id="dashMqttBadge" class="badge">Checking</span></div>
+          <div id="dashMqttDetail" class="muted mini">Bridge status</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">IR Inventory</div>
+          <div class="stat-value" id="dashInventoryVal">-</div>
+          <div id="dashCommandsVal" class="muted mini">- commands</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Active Activity</div>
+          <div class="stat-value"><span id="dashActiveActName" class="badge ok">PowerOff</span></div>
+          <div id="dashActiveActDetail" class="muted mini">ID: -1</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Software Update</div>
+          <div class="stat-value"><span id="dashUpdateBadge" class="badge">Check</span></div>
+          <div id="dashUpdateDetail" class="muted mini">-</div>
+        </div>
+      </div>
+
+      <div class="quick-actions-title">Quick Actions</div>
+      <div class="quick-actions-grid">
+        <button type="button" class="quick-action-btn" data-view-target="activities">
+          <strong>Activities</strong>
+          <small class="muted">Run activities, edit start/stop sequences</small>
+        </button>
+        <button type="button" class="quick-action-btn" data-view-target="control">
+          <strong>Use a Remote</strong>
+          <small class="muted">Send buttons from tactile skin or command list</small>
+        </button>
+        <button type="button" class="quick-action-btn" data-view-target="ir">
+          <strong>Add or Edit Remotes</strong>
+          <small class="muted">Create devices, search databases, learn buttons</small>
+        </button>
+        <button type="button" class="quick-action-btn" data-view-target="lab">
+          <strong>Bulk Test IR Codes</strong>
+          <small class="muted">Search code files & queue tests</small>
+        </button>
+        <button type="button" class="quick-action-btn" data-view-target="bluetooth">
+          <strong>Bluetooth Keyboard</strong>
+          <small class="muted">Control PC/Shield with keyboard & macros</small>
+        </button>
+        <button type="button" class="quick-action-btn" data-view-target="remotes">
+          <strong>Physical BT Remote</strong>
+          <small class="muted">Map Homatics B25 buttons per activity</small>
+        </button>
+        <button type="button" class="quick-action-btn" data-view-target="mqtt">
+          <strong>Home Assistant MQTT</strong>
+          <small class="muted">Configure broker, discovery & topics</small>
+        </button>
+        <button type="button" class="quick-action-btn" data-view-target="network">
+          <strong>Network Settings</strong>
+          <small class="muted">Configure Wi-Fi, Ethernet & serial console</small>
+        </button>
+        <button type="button" class="quick-action-btn" data-view-target="backup">
+          <strong>Back Up Settings</strong>
+          <small class="muted">Download or restore configuration bundle</small>
+        </button>
+      </div>
     </section>
 
-    <!-- Saved Hubs View -->
+    <!-- 3. Activities View (Run, Sequence Builder & Delay Timeline) -->
+    <section id="view-activities" class="view-panel">
+      <div class="section-head">
+        <div>
+          <h2>Activities</h2>
+          <div class="section-lead">Run activities, switch inputs, control power sequences and delays.</div>
+        </div>
+        <div class="actions" style="margin-top: 0;">
+          <button type="button" id="actRefreshBtn" class="btn btn-sm btn-ghost">Refresh</button>
+          <button type="button" id="actNewBtn" class="btn btn-sm btn-primary">+ New Activity</button>
+          <button type="button" id="actPowerOffBtn" class="btn btn-sm btn-danger">Power Off Hub</button>
+        </div>
+      </div>
+
+      <div class="card" id="actCurrentBanner" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px;">
+        <div>
+          <div class="muted mini" style="text-transform: uppercase; letter-spacing: .04em;">Current Hub State</div>
+          <div style="font-size: 18px; font-weight: 700; margin-top: 2px;" id="actCurrentName">PowerOff</div>
+          <div class="muted mini" id="actCurrentMeta">Activity ID: -1</div>
+        </div>
+        <div><span class="badge ok" id="actCurrentStatusBadge">Idle</span></div>
+      </div>
+
+      <div class="card" style="margin-bottom: 14px;">
+        <h3 style="font-size: 15px; margin-bottom: 10px;">Configured Activities</h3>
+        <div id="actGrid" class="cards" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+          <div class="muted">Loading activities...</div>
+        </div>
+      </div>
+
+      <!-- Activity Editor Panel -->
+      <div class="card" id="actEditorBox" style="display: none; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+          <div>
+            <h3 id="actEditorTitle" style="margin: 0; font-size: 16px;">Edit Activity</h3>
+            <div class="muted mini" id="actEditorSubtitle">Configure activity settings and command sequences</div>
+          </div>
+          <button type="button" id="actEditorCloseBtn" class="btn btn-xs btn-ghost">Close</button>
+        </div>
+
+        <form id="actForm" onsubmit="return false;">
+          <input type="hidden" id="actEditId" name="id" value="">
+          <div class="row">
+            <div>
+              <label for="actEditName">Activity Name</label>
+              <input type="text" id="actEditName" class="form-control" required placeholder="e.g. Watch TV, Play PS5">
+            </div>
+            <div>
+              <label for="actEditType">Activity Type / Icon</label>
+              <select id="actEditType" class="form-control">
+                <option value="VirtualTelevision">Watch TV</option>
+                <option value="VirtualGeneric">Watch Movie / Stream</option>
+                <option value="VirtualMusic">Listen to Music</option>
+                <option value="VirtualGameConsole">Play Game</option>
+                <option value="Custom">Custom Activity</option>
+                <option value="PowerOff">PowerOff</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 10px;">
+            <div>
+              <label for="actEditOrder">Display Order</label>
+              <input type="number" id="actEditOrder" class="form-control" min="0" max="99" value="1">
+            </div>
+            <div>
+              <label>Participating Devices</label>
+              <div id="actDevicesCheckboxes" style="display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px;"></div>
+            </div>
+          </div>
+
+          <!-- Turn-On Sequence -->
+          <div style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+              <div>
+                <strong>Turn-On Sequence (StartSequence)</strong>
+                <div class="muted mini">Commands sent in order when entering this activity.</div>
+              </div>
+              <div class="actions" style="margin: 0;">
+                <button type="button" id="actAddStartCmdBtn" class="btn btn-xs btn-secondary">+ Add Command</button>
+                <button type="button" id="actAddStartDelayBtn" class="btn btn-xs btn-ghost">+ Add Delay</button>
+                <button type="button" id="actTestStartSeqBtn" class="btn btn-xs btn-ghost">Test Live</button>
+              </div>
+            </div>
+            <div id="actStartStepsList" class="queue-list" style="min-height: 50px; max-height: 240px;">
+              <div class="muted mini" style="padding: 8px;">No start steps configured.</div>
+            </div>
+          </div>
+
+          <!-- Turn-Off Sequence -->
+          <div style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+              <div>
+                <strong>Turn-Off Sequence (StopSequence)</strong>
+                <div class="muted mini">Commands sent when leaving activity or powering off.</div>
+              </div>
+              <div class="actions" style="margin: 0;">
+                <button type="button" id="actAddStopCmdBtn" class="btn btn-xs btn-secondary">+ Add Command</button>
+                <button type="button" id="actAddStopDelayBtn" class="btn btn-xs btn-ghost">+ Add Delay</button>
+                <button type="button" id="actTestStopSeqBtn" class="btn btn-xs btn-ghost">Test Live</button>
+              </div>
+            </div>
+            <div id="actStopStepsList" class="queue-list" style="min-height: 50px; max-height: 240px;">
+              <div class="muted mini" style="padding: 8px;">No stop steps configured.</div>
+            </div>
+          </div>
+
+          <div class="actions" style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; display: flex; justify-content: space-between;">
+            <div style="display: flex; gap: 8px;">
+              <button type="button" id="actSaveBtn" class="btn btn-sm btn-primary">Save Activity</button>
+              <button type="button" id="actCancelBtn" class="btn btn-sm btn-ghost">Cancel</button>
+            </div>
+            <button type="button" id="actDeleteBtn" class="btn btn-sm btn-danger" style="display: none;">Delete Activity</button>
+          </div>
+          <div id="actEditorStatus" class="subtle" style="margin-top: 6px;"></div>
+        </form>
+      </div>
+
+      <!-- Activity Transition Preview Simulator -->
+      <div class="card">
+        <h3 style="font-size: 15px; margin-bottom: 4px;">Activity Transition Preview</h3>
+        <div class="muted mini">Simulate switching between activities to inspect the exact command sequence and delay timeline.</div>
+        <div class="row" style="margin-top: 10px;">
+          <div>
+            <label for="previewFromAct">From Activity</label>
+            <select id="previewFromAct" class="form-control"></select>
+          </div>
+          <div>
+            <label for="previewToAct">To Activity</label>
+            <select id="previewToAct" class="form-control"></select>
+          </div>
+        </div>
+        <div class="actions" style="margin-top: 10px;">
+          <button type="button" id="previewSimulateBtn" class="btn btn-sm btn-secondary">Simulate Transition</button>
+        </div>
+        <div id="previewResultsBox" style="display: none; margin-top: 12px;">
+          <div id="previewSummary" class="help" style="margin-bottom: 8px;"></div>
+          <div id="previewTimeline" class="queue-list" style="max-height: 300px;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Control View (Device Remotes & Vector Layouts) -->
+    <section id="view-control" class="view-panel">
+      <div class="section-head">
+        <div>
+          <h2>Remote Control</h2>
+          <div class="section-lead">Choose a saved device, then send its buttons or customize layout.</div>
+        </div>
+      </div>
+
+      <div class="device-select-bar" style="margin-bottom: 12px; display: flex; gap: 8px; align-items: center;">
+        <select id="controlDeviceSelect" class="form-control" style="flex: 1;"></select>
+      </div>
+
+      <div id="controlDeviceWorkspace"></div>
+    </section>
+
+    <!-- 5. IR Setup View (Add, Database Search, Learn, Power & MQTT) -->
+    <section id="view-ir" class="view-panel">
+      <div class="section-head">
+        <div>
+          <h2>IR Setup</h2>
+          <div class="section-lead">Create devices, search IR databases, learn buttons, and configure blaster & power settings.</div>
+        </div>
+      </div>
+
+      <!-- Wizard Stepper Nav -->
+      <div class="stepper-nav" style="display: flex; gap: 6px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 4px;">
+        <button type="button" class="btn btn-sm btn-primary step-btn active" data-step-target="device">1. Device Profile</button>
+        <button type="button" class="btn btn-sm btn-ghost step-btn" data-step-target="library">2. Search DB</button>
+        <button type="button" class="btn btn-sm btn-ghost step-btn" data-step-target="learn">3. Learn Button</button>
+        <button type="button" class="btn btn-sm btn-ghost step-btn" data-step-target="verify">4. Verify / Test</button>
+        <button type="button" class="btn btn-sm btn-ghost step-btn" data-step-target="manage">5. Manage Stored</button>
+      </div>
+
+      <!-- Step 1: Device Profile -->
+      <div class="wizard-panel active" data-panel="device">
+        <div class="card">
+          <div class="callout"><strong>Start with the device profile.</strong> Enter brand and model. Database search and auto-mapping use this.</div>
+          <form id="profileDeviceForm" onsubmit="return false;">
+            <div class="row">
+              <div>
+                <label for="newDeviceName">Device Name</label>
+                <input id="newDeviceName" class="form-control" required placeholder="Living Room TV">
+              </div>
+              <div>
+                <label for="newDeviceType">Device Type</label>
+                <select id="newDeviceType" class="form-control">
+                  <option value="Television">Television</option>
+                  <option value="Amplifier">Receiver / amplifier</option>
+                  <option value="Media Player">Media player</option>
+                  <option value="HomeAppliance">Home appliance</option>
+                  <option value="Game Console">Game console</option>
+                  <option value="MQTT">MQTT virtual device</option>
+                </select>
+              </div>
+            </div>
+            <div class="row" style="margin-top: 10px;">
+              <div>
+                <label for="newDeviceManufacturer">Manufacturer</label>
+                <input id="newDeviceManufacturer" class="form-control" required placeholder="e.g. Pioneer, LG, Samsung">
+              </div>
+              <div>
+                <label for="newDeviceModel">Model</label>
+                <input id="newDeviceModel" class="form-control" required placeholder="e.g. VSX-D1, C5, Shield">
+              </div>
+            </div>
+            <div id="profileStatus" class="subtle" style="margin-top: 8px;"></div>
+            <div class="actions" style="margin-top: 12px;">
+              <button id="btnCreateNewDevice" type="button" class="btn btn-sm btn-primary">Create New Device</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Step 2: Search Database -->
+      <div class="wizard-panel" data-panel="library" style="display: none;">
+        <div class="card">
+          <div class="callout"><strong>Search code databases before learning.</strong> Try the manufacturer and model first. Choose a match, load its commands, then save.</div>
+          <form id="irdbImportForm" onsubmit="return false;">
+            <div class="row">
+              <div>
+                <label for="irdbDevice">Save Commands To</label>
+                <select id="irdbDevice" class="form-control"></select>
+              </div>
+              <div>
+                <label for="irdbSource">Database Source</label>
+                <select id="irdbSource" class="form-control">
+                  <option value="all">All databases</option>
+                  <option value="irdb">probonopd/irdb CSV</option>
+                  <option value="flipper">Flipper-IRDB .ir</option>
+                  <option value="lirc">LIRC remotes</option>
+                  <option value="smartir">SmartIR JSON</option>
+                  <option value="remotecentral">RemoteCentral Pronto hex</option>
+                  <option value="custom">Pasted file or URL</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="margin-top: 10px;">
+              <label for="irdbSearch">Search Terms</label>
+              <input id="irdbSearch" class="form-control" placeholder="e.g. Pioneer VSX-D1, LG C5, Samsung TV">
+            </div>
+
+            <div id="irdbResults" class="preview" style="display: none; margin-top: 10px; max-height: 180px; overflow-y: auto;"></div>
+
+            <div style="margin-top: 10px;">
+              <label for="irdbPath">Selected File, Page, or URL</label>
+              <input id="irdbPath" class="form-control" placeholder="Samsung/TV/7,7.csv or raw URL">
+            </div>
+
+            <div style="margin-top: 10px;">
+              <label for="irdbPaste">Paste IR Codes or File Contents</label>
+              <textarea id="irdbPaste" class="form-control" rows="3" placeholder="Paste Flipper .ir, LIRC, Pronto Hex, Global Cache, or JSON"></textarea>
+            </div>
+
+            <div class="row" style="margin-top: 10px;">
+              <div>
+                <label for="irdbPrefix">Command Name Prefix</label>
+                <input id="irdbPrefix" class="form-control" placeholder="TV ">
+              </div>
+              <div>
+                <label for="irdbFile">Upload File</label>
+                <input id="irdbFile" type="file" class="form-control" accept=".ir,.conf,.lircd,.lirc,.txt,.xml,.girr,.irc,.csv,.json">
+              </div>
+            </div>
+
+            <textarea id="irdbPayload" style="display: none;"></textarea>
+            <div id="irdbStatus" class="subtle" style="margin-top: 8px;"></div>
+            <div id="irdbPreview" class="preview" style="display: none; margin-top: 10px; max-height: 160px; overflow-y: auto;"></div>
+
+            <div class="actions" style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
+              <button id="irdbLoadIndex" type="button" class="btn btn-sm btn-secondary">Search Databases</button>
+              <button id="irdbFetch" type="button" class="btn btn-sm btn-secondary">Load Selected File</button>
+              <button id="irdbParsePaste" type="button" class="btn btn-sm btn-secondary">Parse Pasted Codes</button>
+              <button id="irdbSaveBtn" type="button" class="btn btn-sm btn-primary">Save Selected Commands</button>
+            </div>
+            <pre id="irdbLog" class="mini" style="margin-top: 10px; max-height: 120px;">Ready.</pre>
+          </form>
+        </div>
+      </div>
+
+      <!-- Step 3: Learn Button -->
+      <div class="wizard-panel" data-panel="learn" style="display: none;">
+        <div class="card">
+          <div class="callout"><strong>Learn from original remote.</strong> Point original remote at hub (3-5 cm), click capture, test it, then save.</div>
+          <form id="wizardLearnForm" onsubmit="return false;">
+            <div class="row">
+              <div>
+                <label for="wizardDevice">Target Device</label>
+                <select id="wizardDevice" class="form-control"></select>
+              </div>
+              <div>
+                <label for="wizardCommandName">Command Name</label>
+                <input id="wizardCommandName" class="form-control" required placeholder="Power Toggle, HDMI 1, Menu">
+              </div>
+            </div>
+
+            <div class="row" style="margin-top: 10px;">
+              <div>
+                <label for="wizardMode">Save Format</label>
+                <select id="wizardMode" class="form-control">
+                  <option value="auto" selected>Choose automatically</option>
+                  <option value="keycode">Harmony compact code</option>
+                  <option value="nec">NEC 32-bit code</option>
+                  <option value="raw">Raw timing recording</option>
+                </select>
+              </div>
+              <div>
+                <label for="wizardProtocol">Protocol</label>
+                <select id="wizardProtocol" class="form-control">
+                  <option value="2">NEC-compatible</option>
+                  <option value="679">MemorexO1 32 Bit</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row" style="margin-top: 10px;">
+              <div>
+                <label for="wizardNec">NEC Hex Code</label>
+                <input id="wizardNec" class="form-control" placeholder="E0E040BF">
+              </div>
+              <div>
+                <label for="wizardKeycode">Harmony Compact Code</label>
+                <input id="wizardKeycode" class="form-control" placeholder="G:Toshiba 32 Bit:(0xE0E040BF)(Repeat)():3">
+              </div>
+            </div>
+
+            <div style="margin-top: 10px;">
+              <label for="wizardRaw">Captured Signal Data</label>
+              <textarea id="wizardRaw" class="form-control" rows="2" placeholder="Captured raw data will appear here..."></textarea>
+            </div>
+
+            <div id="wizardLearnStatus" class="subtle" style="margin-top: 8px;"></div>
+            <div class="actions" style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
+              <button id="wizardCapture" type="button" class="btn btn-sm btn-primary">Capture from Remote</button>
+              <button id="wizardLearnTest" type="button" class="btn btn-sm btn-secondary">Test Captured Button</button>
+              <button id="wizardSaveBtn" type="button" class="btn btn-sm btn-primary">Save Command</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Step 4: Verify / Test -->
+      <div class="wizard-panel" data-panel="verify" style="display: none;">
+        <div class="card">
+          <div class="callout"><strong>Test commands before creating activities.</strong> Send one saved command and confirm the real appliance reacts.</div>
+          <div class="row">
+            <div>
+              <label for="verifyDevice">Device</label>
+              <select id="verifyDevice" class="form-control"></select>
+            </div>
+            <div>
+              <label for="verifyCommand">Command</label>
+              <select id="verifyCommand" class="form-control"></select>
+            </div>
+          </div>
+          <div id="wizardVerifyStatus" class="subtle" style="margin-top: 8px;"></div>
+          <div class="actions" style="margin-top: 12px;">
+            <button id="wizardTest" type="button" class="btn btn-sm btn-primary">Send Test Command</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 5: Manage Stored Devices -->
+      <div class="wizard-panel" data-panel="manage" style="display: none;">
+        <div class="card" style="margin-bottom: 12px;">
+          <label for="manageDeviceSelect">Select Device to Configure</label>
+          <select id="manageDeviceSelect" class="form-control"></select>
+        </div>
+        <div id="storedDeviceEditor"></div>
+      </div>
+    </section>
+
+    <!-- 6. Bulk IR Test View (Lab) -->
+    <section id="view-lab" class="view-panel">
+      <div class="section-head">
+        <div>
+          <h2>Bulk IR Test</h2>
+          <div class="section-lead">Search code libraries, queue matching commands, and send or save them.</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom: 14px;">
+        <h3 style="font-size: 15px; margin-bottom: 8px;">Find Command Files</h3>
+        <div class="row">
+          <div>
+            <label for="labDevice">Device to Save or Test On</label>
+            <select id="labDevice" class="form-control">
+              <option value="__auto_lab__" selected>Temporary test device</option>
+            </select>
+          </div>
+          <div>
+            <label for="labSource">Database Source</label>
+            <select id="labSource" class="form-control">
+              <option value="all">All databases</option>
+              <option value="irdb">probonopd/irdb</option>
+              <option value="flipper">Flipper-IRDB</option>
+              <option value="lirc">LIRC remotes</option>
+              <option value="smartir">SmartIR JSON</option>
+              <option value="remotecentral">RemoteCentral</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top: 10px;">
+          <div>
+            <label for="labPathFilter">Device, Brand, Model, or Path</label>
+            <input id="labPathFilter" class="form-control" placeholder="air conditioner, Pioneer, Samsung/TV">
+          </div>
+          <div>
+            <label for="labCommandFilter">Button Names to Include</label>
+            <input id="labCommandFilter" class="form-control" placeholder="off, power off, standby">
+          </div>
+        </div>
+
+        <div class="lab-presets" style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px;">
+          <button id="labOffFilter" type="button" class="btn btn-xs btn-ghost">Power off</button>
+          <button id="labPowerFilter" type="button" class="btn btn-xs btn-ghost">Any power</button>
+          <button id="labVolumeFilter" type="button" class="btn btn-xs btn-ghost">Volume</button>
+          <button id="labInputFilter" type="button" class="btn btn-xs btn-ghost">Inputs</button>
+          <button id="labClearFilter" type="button" class="btn btn-xs btn-ghost">Clear</button>
+        </div>
+
+        <details class="lab-advanced" style="margin-top: 12px;">
+          <summary>Search Limits and Timing</summary>
+          <div class="row" style="margin-top: 8px;">
+            <div>
+              <label for="labMaxFiles">Files to Scan per Click</label>
+              <input id="labMaxFiles" type="number" class="form-control" value="600">
+            </div>
+            <div>
+              <label for="labMaxCommands">Maximum Commands in Queue</label>
+              <input id="labMaxCommands" type="number" class="form-control" value="900">
+            </div>
+          </div>
+          <div class="row" style="margin-top: 8px;">
+            <div>
+              <label for="labSendDelay">Delay Between IR Sends (ms)</label>
+              <input id="labSendDelay" type="number" class="form-control" value="80">
+            </div>
+            <div>
+              <label for="labBatchSize">Commands Sent per Batch</label>
+              <input id="labBatchSize" type="number" class="form-control" value="100">
+            </div>
+          </div>
+          <label style="display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; cursor: pointer;">
+            <input id="labDryRun" type="checkbox"> Dry run (do not send IR)
+          </label>
+        </details>
+
+        <div class="actions" style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
+          <button id="labCandidatesBtn" type="button" class="btn btn-sm btn-secondary">Find Matching Files</button>
+          <button id="labScan" type="button" class="btn btn-sm btn-primary">Load Commands</button>
+          <button id="labStored" type="button" class="btn btn-sm btn-secondary">Use Saved Commands</button>
+          <button id="labClear" type="button" class="btn btn-sm btn-ghost">Clear Queue</button>
+        </div>
+
+        <div id="labStatus" class="subtle" style="margin-top: 8px;"></div>
+        <div class="meter" style="margin-top: 6px;"><span id="labMeter"></span></div>
+        <div id="labCandidates" class="preview" style="display: none; margin-top: 8px; max-height: 140px; overflow-y: auto;"></div>
+      </div>
+
+      <!-- Queue Card -->
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h3 style="font-size: 15px; margin: 0;">Command Queue</h3>
+          <span id="labSummary" class="muted mini">0 queued</span>
+        </div>
+        <div class="queue-tools" style="display: flex; gap: 6px; margin-bottom: 8px;">
+          <button id="labSelectAll" type="button" class="btn btn-xs btn-ghost">Select All</button>
+          <button id="labSelectNone" type="button" class="btn btn-xs btn-ghost">Select None</button>
+          <button id="labDropUnchecked" type="button" class="btn btn-xs btn-ghost">Remove Unchecked</button>
+        </div>
+        <div id="labQueue" class="queue-list" style="max-height: 280px; overflow-y: auto;">
+          <div class="muted mini" style="padding: 8px;">No commands queued.</div>
+        </div>
+        <div class="actions" style="margin-top: 12px; display: flex; gap: 8px;">
+          <button id="labImport" type="button" class="btn btn-sm btn-secondary">Save Selected</button>
+          <button id="labRun" type="button" class="btn btn-sm btn-primary">Send Selected</button>
+          <button id="labStop" type="button" class="btn btn-sm btn-danger">Stop Sending</button>
+        </div>
+        <pre id="labLog" class="mini" style="margin-top: 10px; max-height: 120px;">Ready.</pre>
+      </div>
+    </section>
+
+    <!-- 7. Bluetooth View (Host, Keyboard, D-Pad, Text & Macro Studio) -->
+    <section id="view-bluetooth" class="view-panel">
+      <div class="section-head">
+        <div>
+          <h2>Bluetooth Keyboard & Remote</h2>
+          <div class="section-lead">Control devices via Bluetooth HID. Pair hub to TV, Shield, or PC, then send buttons or type text.</div>
+        </div>
+      </div>
+
+      <!-- Host Connection & Pairing Banner -->
+      <div class="card" style="margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+          <div>
+            <h3 style="margin: 0; font-size: 15px;">Bluetooth Host Connection</h3>
+            <div id="btHostDesc" class="muted mini">Checking BTstack daemon...</div>
+          </div>
+          <span id="btStatusBadge" class="badge">Checking...</span>
+        </div>
+
+        <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+          <input id="btPairName" class="form-control" style="width: 160px;" value="Harmony Keyboard" maxlength="48" placeholder="Hub Name">
+          <select id="btPairTargetDev" class="form-control" style="flex: 1; min-width: 140px;"></select>
+          <button id="btPairToggleBtn" type="button" class="btn btn-sm btn-primary">Start Pairing Mode</button>
+          <button id="btDisconnBtn" type="button" class="btn btn-sm btn-danger" style="display: none;">Disconnect All</button>
+          <button id="btRefreshBtn" type="button" class="btn btn-sm btn-secondary">Refresh</button>
+        </div>
+        <div id="btPairHelp" class="help" style="margin-top: 6px;">Select target device, click Start Pairing Mode, then open Bluetooth settings on your host device and choose Harmony.</div>
+
+        <div style="border-top: 1px solid var(--border); margin-top: 12px; padding-top: 10px;">
+          <h4 style="font-size: 13px; margin-bottom: 6px;">Device Connections</h4>
+          <div id="btDevicesList"><div class="muted mini">Loading devices...</div></div>
+        </div>
+      </div>
+
+      <!-- Virtual Keyboard & D-Pad Card -->
+      <div class="card" style="margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
+          <h3 style="font-size: 15px; margin: 0;">Remote & Keyboard</h3>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <select id="btTargetHostSelect" class="form-control" style="font-size: 12px; width: 140px;"><option value="">Auto (Active Host)</option></select>
+            <button id="btReleaseAll" type="button" class="btn btn-xs btn-danger">Release All</button>
+          </div>
+        </div>
+
+        <!-- Full QWERTY Virtual Keyboard Scroll Panel -->
+        <div class="kb-panel" style="margin-bottom: 12px;">
+          <!-- Row 1: Esc + F1-F12 -->
+          <div class="kb-row">
+            <button type="button" class="kb-key kb-15" data-key="escape">Esc</button>
+            <button type="button" class="kb-key" data-key="f1">F1</button><button type="button" class="kb-key" data-key="f2">F2</button>
+            <button type="button" class="kb-key" data-key="f3">F3</button><button type="button" class="kb-key" data-key="f4">F4</button>
+            <button type="button" class="kb-key" data-key="f5">F5</button><button type="button" class="kb-key" data-key="f6">F6</button>
+            <button type="button" class="kb-key" data-key="f7">F7</button><button type="button" class="kb-key" data-key="f8">F8</button>
+            <button type="button" class="kb-key" data-key="f9">F9</button><button type="button" class="kb-key" data-key="f10">F10</button>
+            <button type="button" class="kb-key" data-key="f11">F11</button><button type="button" class="kb-key" data-key="f12">F12</button>
+            <button type="button" class="kb-key" data-key="insert">Ins</button><button type="button" class="kb-key" data-key="delete">Del</button>
+          </div>
+          <!-- Row 2: Numbers -->
+          <div class="kb-row">
+            <button type="button" class="kb-key" data-key="grave">`</button>
+            <button type="button" class="kb-key" data-key="1">1</button><button type="button" class="kb-key" data-key="2">2</button>
+            <button type="button" class="kb-key" data-key="3">3</button><button type="button" class="kb-key" data-key="4">4</button>
+            <button type="button" class="kb-key" data-key="5">5</button><button type="button" class="kb-key" data-key="6">6</button>
+            <button type="button" class="kb-key" data-key="7">7</button><button type="button" class="kb-key" data-key="8">8</button>
+            <button type="button" class="kb-key" data-key="9">9</button><button type="button" class="kb-key" data-key="0">0</button>
+            <button type="button" class="kb-key" data-key="minus">-</button><button type="button" class="kb-key" data-key="equal">=</button>
+            <button type="button" class="kb-key kb-2" data-key="backspace">⌫ Back</button>
+            <button type="button" class="kb-key" data-key="home">Home</button>
+          </div>
+          <!-- Row 3: QWERTY -->
+          <div class="kb-row">
+            <button type="button" class="kb-key kb-15" data-key="tab">Tab</button>
+            <button type="button" class="kb-key" data-key="q">Q</button><button type="button" class="kb-key" data-key="w">W</button>
+            <button type="button" class="kb-key" data-key="e">E</button><button type="button" class="kb-key" data-key="r">R</button>
+            <button type="button" class="kb-key" data-key="t">T</button><button type="button" class="kb-key" data-key="y">Y</button>
+            <button type="button" class="kb-key" data-key="u">U</button><button type="button" class="kb-key" data-key="i">I</button>
+            <button type="button" class="kb-key" data-key="o">O</button><button type="button" class="kb-key" data-key="p">P</button>
+            <button type="button" class="kb-key" data-key="leftbracket">[</button><button type="button" class="kb-key" data-key="rightbracket">]</button>
+            <button type="button" class="kb-key" data-key="backslash">\</button><button type="button" class="kb-key" data-key="end">End</button>
+          </div>
+          <!-- Row 4: ASDF -->
+          <div class="kb-row">
+            <button type="button" class="kb-key kb-2" data-key="capslock">Caps</button>
+            <button type="button" class="kb-key" data-key="a">A</button><button type="button" class="kb-key" data-key="s">S</button>
+            <button type="button" class="kb-key" data-key="d">D</button><button type="button" class="kb-key" data-key="f">F</button>
+            <button type="button" class="kb-key" data-key="g">G</button><button type="button" class="kb-key" data-key="h">H</button>
+            <button type="button" class="kb-key" data-key="j">J</button><button type="button" class="kb-key" data-key="k">K</button>
+            <button type="button" class="kb-key" data-key="l">L</button><button type="button" class="kb-key" data-key="semicolon">;</button>
+            <button type="button" class="kb-key" data-key="apostrophe">'</button>
+            <button type="button" class="kb-key kb-225" data-key="enter">Enter ↵</button>
+            <button type="button" class="kb-key" data-key="pageup">PgUp</button>
+          </div>
+          <!-- Row 5: ZXCV -->
+          <div class="kb-row">
+            <button type="button" class="kb-key kb-225 kb-mod" data-mod="shift">⇧ Shift</button>
+            <button type="button" class="kb-key" data-key="z">Z</button><button type="button" class="kb-key" data-key="x">X</button>
+            <button type="button" class="kb-key" data-key="c">C</button><button type="button" class="kb-key" data-key="v">V</button>
+            <button type="button" class="kb-key" data-key="b">B</button><button type="button" class="kb-key" data-key="n">N</button>
+            <button type="button" class="kb-key" data-key="m">M</button><button type="button" class="kb-key" data-key="comma">,</button>
+            <button type="button" class="kb-key" data-key="period">.</button><button type="button" class="kb-key" data-key="slash">/</button>
+            <button type="button" class="kb-key kb-225 kb-mod" data-mod="shift">⇧ Shift</button>
+            <button type="button" class="kb-key" data-key="up">▲</button>
+            <button type="button" class="kb-key" data-key="pagedown">PgDn</button>
+          </div>
+          <!-- Row 6: Mods & Space -->
+          <div class="kb-row">
+            <button type="button" class="kb-key kb-15 kb-mod" data-mod="ctrl">Ctrl</button>
+            <button type="button" class="kb-key kb-125 kb-mod" data-mod="win">Win</button>
+            <button type="button" class="kb-key kb-125 kb-mod" data-mod="alt">Alt</button>
+            <button type="button" class="kb-key kb-sp" data-key="space">Space</button>
+            <button type="button" class="kb-key kb-125 kb-mod" data-mod="alt">Alt</button>
+            <button type="button" class="kb-key kb-125 kb-mod" data-mod="win">Win</button>
+            <button type="button" class="kb-key kb-15 kb-mod" data-mod="ctrl">Ctrl</button>
+            <button type="button" class="kb-key" data-key="left">◀</button>
+            <button type="button" class="kb-key" data-key="down">▼</button>
+            <button type="button" class="kb-key" data-key="right">▶</button>
+          </div>
+        </div>
+
+        <!-- D-Pad & Media Quick Controls -->
+        <div style="display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px;">
+          <!-- D-Pad -->
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+            <div style="display: grid; grid-template-columns: repeat(3, 42px); gap: 4px;">
+              <div></div><button type="button" class="kb-key" data-key="up">▲</button><div></div>
+              <button type="button" class="kb-key" data-key="left">◀</button>
+              <button type="button" class="kb-key" style="font-weight: 700;" data-key="select">OK</button>
+              <button type="button" class="kb-key" data-key="right">▶</button>
+              <div></div><button type="button" class="kb-key" data-key="down">▼</button><div></div>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <button type="button" class="kb-key" style="font-size: 11px; padding: 0 6px;" data-key="back">↩ Back</button>
+              <button type="button" class="kb-key" style="font-size: 11px; padding: 0 6px;" data-key="home">Home</button>
+              <button type="button" class="kb-key" style="font-size: 11px; padding: 0 6px;" data-key="menu">Menu</button>
+            </div>
+          </div>
+
+          <!-- Media Controls -->
+          <div style="display: grid; grid-template-columns: repeat(2, 68px); gap: 6px; align-content: center;">
+            <button type="button" class="kb-key" data-key="vol_up">Vol +</button>
+            <button type="button" class="kb-key" data-key="vol_down">Vol -</button>
+            <button type="button" class="kb-key" data-key="mute">Mute</button>
+            <button type="button" class="kb-key" data-key="play_pause">Play/Pause</button>
+            <button type="button" class="kb-key" data-key="rewind">◀◀ Rew</button>
+            <button type="button" class="kb-key" data-key="fastforward">Fwd ▶▶</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Type Text & Script Studio Grid -->
+      <div class="row">
+        <!-- Type Text -->
+        <div class="card">
+          <h3 style="font-size: 15px; margin-bottom: 6px;">Type Text</h3>
+          <div class="help">Send text strings or URLs directly to host.</div>
+          <textarea id="btDirectText" class="form-control" rows="3" style="margin-top: 8px;" placeholder="Type text to send..."></textarea>
+          <div class="actions" style="margin-top: 8px;">
+            <button id="btSendTextBtn" type="button" class="btn btn-sm btn-primary">Send Text</button>
+            <button id="btClearTextBtn" type="button" class="btn btn-sm btn-ghost">Clear</button>
+            <span id="btTextStatus" class="subtle" style="margin-left: 8px;"></span>
+          </div>
+        </div>
+
+        <!-- Macro Script Studio -->
+        <div class="card">
+          <h3 style="font-size: 15px; margin-bottom: 6px;">Macro Script Studio</h3>
+          <div class="help">Run sequence of keys & delays. Format: <code>TEXT &lt;words&gt;</code>, <code>KEY &lt;name&gt;</code>, <code>WAIT &lt;ms&gt;</code>, <code>COMBO &lt;ctrl+c&gt;</code>.</div>
+          <textarea id="btMacroScript" class="form-control" rows="3" style="margin-top: 8px; font-family: monospace;" placeholder="TEXT hello&#10;WAIT 300&#10;KEY enter"></textarea>
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+            <label style="margin: 0; white-space: nowrap;">Delay (ms):</label>
+            <input id="btScriptDelay" type="number" class="form-control" style="width: 70px;" value="35">
+            <button id="btRunScriptBtn" type="button" class="btn btn-sm btn-primary">Run Script</button>
+            <button id="btStopScriptBtn" type="button" class="btn btn-sm btn-danger" disabled>Stop</button>
+          </div>
+          <div id="btScriptStatus" class="subtle" style="margin-top: 4px;"></div>
+
+          <div style="border-top: 1px solid var(--border); margin-top: 10px; padding-top: 8px;">
+            <h4 style="font-size: 13px; margin-bottom: 6px;">Save as Device Command</h4>
+            <div class="row">
+              <select id="btSaveDeviceSelect" class="form-control"></select>
+              <input id="btSaveCommandName" class="form-control" placeholder="Command name">
+            </div>
+            <div class="actions" style="margin-top: 8px;">
+              <button id="btSaveCommandBtn" type="button" class="btn btn-sm btn-secondary">Save Command</button>
+              <span id="btSaveCommandStatus" class="subtle" style="margin-left: 8px;"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Saved BT Commands & Devices -->
+      <div class="card" style="margin-top: 14px;">
+        <h3 style="font-size: 15px; margin-bottom: 6px;">Saved Bluetooth Devices & Commands</h3>
+        <div id="btSavedDevicesList"><div class="muted mini">No saved commands.</div></div>
+      </div>
+
+      <!-- Diagnostics Log -->
+      <details style="margin-top: 14px;">
+        <summary>Bluetooth Diagnostics Log</summary>
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 6px;">
+          <button id="btClearLogBtn" type="button" class="btn btn-xs btn-ghost">Clear Log</button>
+        </div>
+        <pre id="btLog" class="mini" style="max-height: 180px;">Ready.</pre>
+      </details>
+    </section>
+
+    <!-- 8. BT Remote View (Homatics B25 Remote Mapping) -->
+    <section id="view-remotes" class="view-panel">
+      <div class="section-head">
+        <div>
+          <h2>Physical Bluetooth Remote</h2>
+          <div class="section-lead">Pair a physical Bluetooth remote (Homatics B25) and map buttons per activity.</div>
+        </div>
+      </div>
+
+      <div id="b25BtstackGuard" class="callout" style="display: none; border-color: var(--danger); background: rgba(239,71,111,0.08); color: var(--danger); margin-bottom: 14px;">
+        <strong>BTstack Service Not Running</strong>
+        Physical Bluetooth Remote control requires the BTstack daemon to be active on the hub.
+      </div>
+
+      <div id="b25ControlsWrapper">
+        <div class="b25-layout">
+          <!-- Left: Remote Skin Graphic with Hotspots -->
+          <div class="card" style="display: flex; flex-direction: column; align-items: center;">
+            <div class="b25-remote-shell">
+              <div class="b25-remote-skin">
+                <img data-remote-b25-skin alt="Homatics B25 Remote">
+
+                <!-- Hotspots -->
+                <button type="button" class="b25-hotspot" style="left:13.1%;top:3.3%;width:14.7%;height:3.1%;" data-btn="power" title="Power"></button>
+                <button type="button" class="b25-hotspot" style="left:72.8%;top:3.3%;width:14.7%;height:3.1%;" data-btn="input" title="Input"></button>
+                <button type="button" class="b25-hotspot" style="left:13.1%;top:8.9%;width:14.7%;height:3.1%;" data-btn="1" title="1"></button>
+                <button type="button" class="b25-hotspot" style="left:42.4%;top:8.9%;width:14.7%;height:3.1%;" data-btn="2" title="2"></button>
+                <button type="button" class="b25-hotspot" style="left:72.8%;top:8.9%;width:14.7%;height:3.1%;" data-btn="3" title="3"></button>
+                <button type="button" class="b25-hotspot" style="left:13.1%;top:13.5%;width:14.7%;height:3.1%;" data-btn="4" title="4"></button>
+                <button type="button" class="b25-hotspot" style="left:42.4%;top:13.5%;width:14.7%;height:3.1%;" data-btn="5" title="5"></button>
+                <button type="button" class="b25-hotspot" style="left:72.8%;top:13.5%;width:14.7%;height:3.1%;" data-btn="6" title="6"></button>
+                <button type="button" class="b25-hotspot" style="left:13.1%;top:17.8%;width:14.7%;height:3.1%;" data-btn="7" title="7"></button>
+                <button type="button" class="b25-hotspot" style="left:42.4%;top:17.8%;width:14.7%;height:3.1%;" data-btn="8" title="8"></button>
+                <button type="button" class="b25-hotspot" style="left:72.8%;top:17.8%;width:14.7%;height:3.1%;" data-btn="9" title="9"></button>
+                <button type="button" class="b25-hotspot" style="left:13.1%;top:22.4%;width:14.7%;height:3.1%;" data-btn="guide" title="Guide"></button>
+                <button type="button" class="b25-hotspot" style="left:42.4%;top:22.4%;width:14.7%;height:3.1%;" data-btn="0" title="0"></button>
+                <button type="button" class="b25-hotspot" style="left:72.8%;top:22.4%;width:14.7%;height:3.1%;" data-btn="info" title="Info"></button>
+
+                <button type="button" class="b25-hotspot" style="left:12.6%;top:26.8%;width:13.6%;height:2.7%;" data-btn="red" title="Red"></button>
+                <button type="button" class="b25-hotspot" style="left:33.0%;top:26.8%;width:13.6%;height:2.7%;" data-btn="green" title="Green"></button>
+                <button type="button" class="b25-hotspot" style="left:53.4%;top:26.8%;width:13.6%;height:2.7%;" data-btn="yellow" title="Yellow"></button>
+                <button type="button" class="b25-hotspot" style="left:73.8%;top:26.8%;width:13.6%;height:2.7%;" data-btn="blue" title="Blue"></button>
+
+                <button type="button" class="b25-hotspot" style="left:15.2%;top:34.0%;width:15.7%;height:3.3%;" data-btn="watchlist" title="Watchlist"></button>
+                <button type="button" class="b25-hotspot" style="left:39.8%;top:32.0%;width:20.9%;height:4.5%;" data-btn="assistant" title="Google Assistant"></button>
+                <button type="button" class="b25-hotspot" style="left:69.1%;top:34.0%;width:15.7%;height:3.3%;" data-btn="settings" title="Settings"></button>
+
+                <button type="button" class="b25-hotspot" style="left:34.6%;top:42.1%;width:31.4%;height:6.7%;" data-btn="select" title="OK"></button>
+                <button type="button" class="b25-hotspot" style="left:31.4%;top:37.4%;width:37.7%;height:4.7%;" data-btn="up" title="Up"></button>
+                <button type="button" class="b25-hotspot" style="left:31.4%;top:48.8%;width:37.7%;height:4.7%;" data-btn="down" title="Down"></button>
+                <button type="button" class="b25-hotspot" style="left:12.0%;top:41.4%;width:22.0%;height:8.0%;" data-btn="left" title="Left"></button>
+                <button type="button" class="b25-hotspot" style="left:66.5%;top:41.4%;width:22.0%;height:8.0%;" data-btn="right" title="Right"></button>
+
+                <button type="button" class="b25-hotspot" style="left:14.7%;top:54.0%;width:15.7%;height:3.3%;" data-btn="back" title="Back"></button>
+                <button type="button" class="b25-hotspot" style="left:39.8%;top:55.0%;width:20.9%;height:4.5%;" data-btn="home" title="Home"></button>
+                <button type="button" class="b25-hotspot" style="left:69.1%;top:54.0%;width:15.7%;height:3.3%;" data-btn="live_tv" title="Live TV"></button>
+
+                <button type="button" class="b25-hotspot rect" style="left:14.7%;top:61.0%;width:16.8%;height:4.5%;" data-btn="vol_up" title="Volume Up"></button>
+                <button type="button" class="b25-hotspot rect" style="left:14.7%;top:67.3%;width:16.8%;height:4.5%;" data-btn="vol_down" title="Volume Down"></button>
+                <button type="button" class="b25-hotspot" style="left:41.9%;top:64.7%;width:15.7%;height:3.3%;" data-btn="mute" title="Mute"></button>
+                <button type="button" class="b25-hotspot rect" style="left:68.6%;top:61.0%;width:16.8%;height:4.5%;" data-btn="ch_up" title="Channel Up"></button>
+                <button type="button" class="b25-hotspot rect" style="left:68.6%;top:67.3%;width:16.8%;height:4.5%;" data-btn="ch_down" title="Channel Down"></button>
+
+                <button type="button" class="b25-hotspot rect" style="left:12.6%;top:74.2%;width:33.5%;height:3.2%;" data-btn="youtube" title="YouTube"></button>
+                <button type="button" class="b25-hotspot rect" style="left:54.5%;top:74.2%;width:33.5%;height:3.2%;" data-btn="netflix" title="Netflix"></button>
+                <button type="button" class="b25-hotspot rect" style="left:12.6%;top:78.6%;width:33.5%;height:3.2%;" data-btn="prime_video" title="Prime Video"></button>
+                <button type="button" class="b25-hotspot rect" style="left:54.5%;top:78.6%;width:33.5%;height:3.2%;" data-btn="google_play" title="Google Play"></button>
+              </div>
+            </div>
+            <div class="help" style="margin-top: 6px;">Tap any button on remote to configure.</div>
+          </div>
+
+          <!-- Right: Mapping Editor & Pairing -->
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <!-- 1. Activity Mode Selector -->
+            <div class="card">
+              <h3 style="font-size: 15px; margin-bottom: 6px;">1. Select Activity Context</h3>
+              <div class="help">Button mappings are configured separately for each Activity or Off/Idle.</div>
+              <div class="row" style="margin-top: 8px;">
+                <select id="b25ActivitySelect" class="form-control"><option value="-1">Off / Idle (Default)</option></select>
+                <button id="b25SaveAllBtn" type="button" class="btn btn-sm btn-primary">Save All Mappings</button>
+              </div>
+            </div>
+
+            <!-- 2. Button Action Configuration -->
+            <div class="card">
+              <h3 style="font-size: 15px; margin-bottom: 6px;">2. Button: <span id="b25CurrentBtnName" style="color: var(--accent);">power</span></h3>
+              <div class="row">
+                <div>
+                  <label for="b25ActionType">Action Type</label>
+                  <select id="b25ActionType" class="form-control">
+                    <option value="unmapped">Unmapped (Do Nothing)</option>
+                    <option value="device_cmd">Send Device Command (IR/BT)</option>
+                    <option value="activity_start">Start Activity</option>
+                    <option value="activity_stop">Stop Activity (Power Off)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="row" style="margin-top: 8px;">
+                <div id="b25WrapTargetDevice">
+                  <label for="b25TargetDevice">Target Device</label>
+                  <select id="b25TargetDevice" class="form-control"></select>
+                </div>
+                <div id="b25WrapTargetCommand">
+                  <label for="b25TargetCommand">Command</label>
+                  <select id="b25TargetCommand" class="form-control"></select>
+                </div>
+                <div id="b25WrapTargetActivity" style="display: none;">
+                  <label for="b25TargetActivity">Activity to Start</label>
+                  <select id="b25TargetActivity" class="form-control"></select>
+                </div>
+              </div>
+
+              <div class="actions" style="margin-top: 12px; display: flex; gap: 8px;">
+                <button id="b25ApplyBtn" type="button" class="btn btn-sm btn-primary">Apply to Selected Button</button>
+                <button id="b25ClearBtn" type="button" class="btn btn-sm btn-danger">Clear Button</button>
+              </div>
+
+              <!-- Quick Preset -->
+              <details style="margin-top: 14px;">
+                <summary>Quick Preset: Auto-map Device Buttons</summary>
+                <div class="help" style="margin: 6px 0;">Assigns all standard buttons (D-pad, OK, Back, Volume, Numbers, Power) for this activity to chosen device.</div>
+                <div class="row" style="margin-top: 8px;">
+                  <select id="b25PresetBtDevice" class="form-control"></select>
+                  <button id="b25RunPresetBtn" type="button" class="btn btn-sm btn-secondary">Auto-map buttons</button>
+                </div>
+              </details>
+            </div>
+
+            <!-- 3. Pair Remote -->
+            <div class="card">
+              <h3 style="font-size: 15px; margin-bottom: 6px;">3. Pair Physical Remote</h3>
+              <div class="help">Hold <strong>Back + Home</strong> on Homatics remote for 3s until LED flashes, then scan.</div>
+              <div class="row" style="margin-top: 8px;">
+                <button id="b25ScanBtn" type="button" class="btn btn-sm btn-secondary">Scan for Remote</button>
+                <select id="b25DiscoveredList" class="form-control"><option value="">No devices found yet</option></select>
+              </div>
+              <div class="actions" style="margin-top: 8px;">
+                <button id="b25PairBtn" type="button" class="btn btn-sm btn-primary">Pair Selected Remote</button>
+              </div>
+              <pre id="b25PairLog" class="mini" style="margin-top: 8px; max-height: 100px;">Remote listener daemon: check status...</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9. MQTT View (Home Assistant Broker & Integration Topics) -->
+    <section id="view-mqtt" class="view-panel">
+      <div class="section-head">
+        <div>
+          <h2>MQTT & Home Assistant</h2>
+          <div class="section-lead">Connect hub to Home Assistant through MQTT broker for local state & control.</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <h3 style="margin: 0; font-size: 15px;">Broker Connection</h3>
+          <span id="mqttConnBadge" class="badge">Checking</span>
+        </div>
+        <div class="help">Configure broker connection parameters. Leave password blank to keep existing password.</div>
+
+        <form id="mqttForm" onsubmit="return false;" style="margin-top: 10px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 10px;">
+            <input type="checkbox" id="mqttEnabled" name="enabled" value="1">
+            <strong>Enabled</strong>
+          </label>
+
+          <div class="row">
+            <div>
+              <label for="mqttHost">MQTT Broker Address</label>
+              <input id="mqttHost" name="host" class="form-control" placeholder="192.168.1.5">
+            </div>
+            <div>
+              <label for="mqttPort">Broker Port</label>
+              <input id="mqttPort" name="port" type="number" class="form-control" value="1883">
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 8px;">
+            <div>
+              <label for="mqttUsername">Username</label>
+              <input id="mqttUsername" name="username" class="form-control">
+            </div>
+            <div>
+              <label for="mqttPassword">Password</label>
+              <input id="mqttPassword" name="password" type="password" class="form-control" placeholder="Leave blank to keep current">
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; margin-top: 4px; cursor: pointer;">
+                <input type="checkbox" id="mqttKeepPass" name="keep_password" value="1" checked> Keep current password
+              </label>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 8px;">
+            <div>
+              <label for="mqttBaseTopic">Base Topic</label>
+              <input id="mqttBaseTopic" name="baseTopic" class="form-control" value="harmony/hub">
+            </div>
+            <div>
+              <label for="mqttDiscoveryPrefix">Discovery Prefix</label>
+              <input id="mqttDiscoveryPrefix" name="discoveryPrefix" class="form-control" value="homeassistant">
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 8px;">
+            <div>
+              <label for="mqttClientId">Client ID</label>
+              <input id="mqttClientId" name="clientId" class="form-control" value="harmony_hub">
+            </div>
+            <div>
+              <label for="mqttName">Display Name</label>
+              <input id="mqttName" name="name" class="form-control" value="Harmony Hub">
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 8px;">
+            <div>
+              <label for="mqttPollSeconds">State Interval (sec)</label>
+              <input id="mqttPollSeconds" name="pollSeconds" type="number" class="form-control" value="10">
+            </div>
+            <div>
+              <label for="mqttKeepAlive">Keepalive (sec)</label>
+              <input id="mqttKeepAlive" name="keepAlive" type="number" class="form-control" value="60">
+            </div>
+          </div>
+
+          <div style="margin-top: 10px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 6px;">
+              <input type="checkbox" id="mqttHaDiscovery" name="haDiscovery" value="1" checked>
+              <span>Create Home Assistant entities automatically</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" id="mqttBtEvents" name="btRemoteEvents" value="1">
+              <span>Publish physical Bluetooth remote buttons to MQTT</span>
+            </label>
+          </div>
+
+          <div class="actions" style="margin-top: 14px;">
+            <button id="mqttSaveBtn" type="button" class="btn btn-sm btn-primary">Save MQTT Settings</button>
+            <span id="mqttSaveStatus" class="subtle" style="margin-left: 8px;"></span>
+          </div>
+        </form>
+      </div>
+
+      <!-- Home Assistant Supported Topics Card -->
+      <div class="card">
+        <h3 style="font-size: 15px; margin-bottom: 6px;">Home Assistant Integration Topics</h3>
+        <div class="help">Send commands, change channels, and sync activities with the same parameters as official Home Assistant integration (aioharmony).</div>
+        <pre id="mqttTopicsGuide" class="mini" style="margin-top: 8px; font-family: monospace;">
+Send Command:    {baseTopic}/send_command
+Change Channel:  {baseTopic}/channel/set
+Hub Sync:        {baseTopic}/sync
+Set Activity:    {baseTopic}/activity/set
+Full Catalog:    {baseTopic}/config (retained)
+Hub State:       {baseTopic}/state (retained)
+        </pre>
+      </div>
+    </section>
+
+    <!-- 10. Network View (Wi-Fi, USB Ethernet & Root Serial Console) -->
+    <section id="view-network" class="view-panel">
+      <div class="section-head">
+        <div>
+          <h2>Network Configuration</h2>
+          <div class="section-lead">Configure Wi-Fi connection, USB Ethernet adapter, and serial console.</div>
+        </div>
+      </div>
+
+      <!-- Current Network Status Card -->
+      <div class="card" style="margin-bottom: 14px;">
+        <h3 style="font-size: 15px; margin-bottom: 6px;">Current Network Status</h3>
+        <div class="kv-grid" id="netStatusKv" style="display: grid; grid-template-columns: 140px 1fr; gap: 6px 12px; font-size: 13px; margin-top: 10px;">
+          <div><strong>Active Connection</strong></div><div id="netConnType">-</div>
+          <div><strong>Active Interface</strong></div><div id="netActiveIf"><code>-</code></div>
+          <div><strong>IP Address</strong></div><div id="netIp"><code>-</code></div>
+          <div><strong>Subnet Mask</strong></div><div id="netMask"><code>-</code></div>
+          <div><strong>Default Gateway</strong></div><div id="netGw"><code>-</code></div>
+          <div><strong>MAC Address</strong></div><div id="netMac"><code>-</code></div>
+          <div><strong>USB Controller</strong></div><div id="netUsbMode">-</div>
+          <div><strong>Ethernet Adapter</strong></div><div id="netEthStatus">-</div>
+          <div><strong>Wi-Fi Status</strong></div><div id="netWifiStatus">-</div>
+        </div>
+        <div class="help" style="margin-top: 10px;">Ethernet takes priority when connected. If cable is unplugged, traffic automatically routes through Wi-Fi.</div>
+      </div>
+
+      <!-- Ethernet & USB Host Settings Card -->
+      <div class="card" style="margin-bottom: 14px;">
+        <h3 style="font-size: 15px; margin-bottom: 6px;">Ethernet & USB Gadget</h3>
+        <div class="help">Enable USB Host mode for USB Ethernet adapters (ASIX, RTL8152, CDC-Ether). USB Gadget mode runs for 15s on reboot to preserve PC recovery access.</div>
+
+        <form id="ethernetForm" onsubmit="return false;" style="margin-top: 10px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 8px;">
+            <input type="checkbox" id="ethEnabledCheck" name="eth_enabled" value="1">
+            <strong>Enable Ethernet / USB Host</strong>
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;">
+            <input type="checkbox" id="ethFallbackCheck" name="eth_fallback_wifi" value="1">
+            <strong>Fallback to Wi-Fi if Ethernet unavailable</strong>
+          </label>
+
+          <label for="ethModeSelect">IP Assignment Mode</label>
+          <select id="ethModeSelect" name="eth_mode" class="form-control">
+            <option value="dhcp">DHCP (Automatic - Recommended)</option>
+            <option value="static">Static IP</option>
+          </select>
+
+          <div id="ethStaticFields" style="display: none; margin-top: 10px;">
+            <label for="ethIp">Static IP Address</label>
+            <input id="ethIp" name="eth_ip" class="form-control" placeholder="192.168.1.50">
+            <label for="ethNetmask">Subnet Mask</label>
+            <input id="ethNetmask" name="eth_netmask" class="form-control" placeholder="255.255.255.0">
+            <label for="ethGateway">Default Gateway</label>
+            <input id="ethGateway" name="eth_gateway" class="form-control" placeholder="192.168.1.1">
+            <label for="ethDns">DNS Server</label>
+            <input id="ethDns" name="eth_dns" class="form-control" placeholder="1.1.1.1">
+          </div>
+
+          <div class="actions" style="margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px;">
+            <button type="button" class="btn btn-sm btn-primary btn-save-eth" data-apply="save">Save Ethernet</button>
+            <button type="button" class="btn btn-sm btn-secondary btn-save-eth" data-apply="reconfigure">Save & Apply</button>
+            <button type="button" class="btn btn-sm btn-secondary btn-save-eth" data-apply="reboot">Save & Reboot</button>
+            <span id="ethSaveStatus" class="subtle" style="margin-left: 8px;"></span>
+          </div>
+        </form>
+      </div>
+
+      <!-- Wi-Fi Settings Card (NO Wi-Fi scanning, as requested) -->
+      <div class="card">
+        <h3 style="font-size: 15px; margin-bottom: 6px;">Wi-Fi Connection</h3>
+        <div class="help">Enter Wi-Fi network credentials. Serves as wireless connection or automatic fallback when Ethernet is disconnected.</div>
+
+        <form id="wifiForm" onsubmit="return false;" style="margin-top: 10px;">
+          <label for="wifiSsidInput">Wi-Fi Network Name (SSID)</label>
+          <input id="wifiSsidInput" name="ssid" class="form-control" required placeholder="Network Name">
+
+          <label for="wifiPskInput">Password</label>
+          <input id="wifiPskInput" name="password" type="password" class="form-control" placeholder="Leave blank to keep current">
+
+          <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" id="wifiKeepPass" name="keep_password" value="1" checked>
+              <span>Keep current password when blank</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" id="wifiHidden" name="hidden" value="1">
+              <span>Hidden network</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" id="wifiOpen" name="open" value="1">
+              <span>No password / open network</span>
+            </label>
+          </div>
+
+          <div class="actions" style="margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px;">
+            <button type="button" class="btn btn-sm btn-primary btn-save-wifi" data-apply="save">Save Wi-Fi</button>
+            <button type="button" class="btn btn-sm btn-secondary btn-save-wifi" data-apply="reconfigure">Save & Apply</button>
+            <button type="button" class="btn btn-sm btn-secondary btn-save-wifi" data-apply="reboot">Save & Reboot</button>
+            <span id="wifiSaveStatus" class="subtle" style="margin-left: 8px;"></span>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 11. Backup View (Export & Import Restores) -->
+    <section id="view-backup" class="view-panel">
+      <div class="section-head">
+        <div>
+          <h2>Backup & Restore</h2>
+          <div class="section-lead">Download a restore point before large edits. Imports create an automatic backup first.</div>
+        </div>
+      </div>
+
+      <!-- Download Backup Card -->
+      <div class="card" style="margin-bottom: 14px;">
+        <h3 style="font-size: 15px; margin-bottom: 6px;">Download Backup</h3>
+        <div class="help">Tap any item to download or view configuration.</div>
+        <div class="export-list" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;">
+          <button type="button" class="btn btn-xs btn-primary btn-backup-export" data-target="bundle">Full Backup Bundle</button>
+          <button type="button" class="btn btn-xs btn-secondary btn-backup-export" data-target="activities">Activities</button>
+          <button type="button" class="btn btn-xs btn-secondary btn-backup-export" data-target="devices">Devices</button>
+          <button type="button" class="btn btn-xs btn-secondary btn-backup-export" data-target="functions">Functions</button>
+          <button type="button" class="btn btn-xs btn-secondary btn-backup-export" data-target="protocols">Protocols</button>
+          <button type="button" class="btn btn-xs btn-secondary btn-backup-export" data-target="mqtt">MQTT</button>
+          <button type="button" class="btn btn-xs btn-secondary btn-backup-export" data-target="wifi">Wi-Fi</button>
+          <button type="button" class="btn btn-xs btn-secondary btn-backup-export" data-target="network">Ethernet</button>
+          <button type="button" class="btn btn-xs btn-secondary btn-backup-export" data-target="bluetooth">Bluetooth</button>
+          <button type="button" class="btn btn-xs btn-secondary btn-backup-export" data-target="remote-mapping">BT Remote Map</button>
+          <button type="button" class="btn btn-xs btn-secondary btn-backup-export" data-target="auth">WebUI Auth</button>
+          <button type="button" class="btn btn-xs btn-secondary btn-backup-export" data-target="hub-id">Hub ID</button>
+        </div>
+      </div>
+
+      <!-- Restore from Backup Card -->
+      <div class="card">
+        <h3 style="font-size: 15px; margin-bottom: 6px;">Restore from Backup</h3>
+        <div class="help">Choose backup type, pick a file or paste contents. Restores take effect immediately or on reboot.</div>
+
+        <form id="backupImportForm" onsubmit="return false;" style="margin-top: 10px;">
+          <label for="backupTarget">Backup Type</label>
+          <select id="backupTarget" class="form-control">
+            <option value="bundle">Full backup bundle</option>
+            <option value="activities">ActivityList.json</option>
+            <option value="devices">DeviceList.json</option>
+            <option value="functions">FunctionList.json</option>
+            <option value="protocols">ProtocolList.json</option>
+            <option value="mqtt">MQTT config</option>
+            <option value="wifi">Wi-Fi config</option>
+            <option value="ethernet">Ethernet config</option>
+            <option value="bluetooth">Bluetooth devices</option>
+            <option value="remote-mapping">bt_remote_map.json</option>
+            <option value="auth">webui_auth.conf</option>
+            <option value="hub_id">hub_id</option>
+          </select>
+
+          <div style="margin-top: 10px;">
+            <label for="importFile">Choose Backup File</label>
+            <input id="importFile" type="file" class="form-control">
+          </div>
+
+          <div style="margin-top: 10px;">
+            <label for="backupPayload">Backup Contents</label>
+            <textarea id="backupPayload" class="form-control" rows="5" style="font-family: monospace; font-size: 11px;" placeholder="Paste JSON or config payload here..."></textarea>
+          </div>
+
+          <div class="actions" style="margin-top: 12px;">
+            <button id="btnRestoreBackup" type="button" class="btn btn-sm btn-primary">Restore Backup</button>
+            <span id="backupImportStatus" class="subtle" style="margin-left: 8px;"></span>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 12. System View (Logs, Debug, Sign-in, Updates & Reboot) -->
+    <section id="view-system" class="view-panel">
+      <div class="section-head">
+        <div>
+          <h2>System Management</h2>
+          <div class="section-lead">Device info, logs, authentication, updates and hub reboot.</div>
+        </div>
+      </div>
+
+      <!-- Collapsible System Diagnostics & Logs -->
+      <div class="card" style="margin-bottom: 14px;">
+        <details style="margin-bottom: 8px;">
+          <summary>System Information</summary>
+          <pre id="sysInfoPre" class="mini" style="max-height: 220px; margin-top: 6px;">Loading system info...</pre>
+        </details>
+
+        <details style="margin-bottom: 8px;">
+          <summary>Hub Service & Kernel Logs</summary>
+          <pre id="sysLogsPre" class="mini" style="max-height: 220px; margin-top: 6px;">Loading logs...</pre>
+        </details>
+
+        <details>
+          <summary>Network Details & Routes</summary>
+          <pre id="sysNetInfoPre" class="mini" style="max-height: 220px; margin-top: 6px;">Loading network details...</pre>
+        </details>
+      </div>
+
+      <!-- Debug Logging Card -->
+      <div class="card" style="margin-bottom: 14px;">
+        <h3 style="font-size: 15px; margin-bottom: 6px;">Debug Logging</h3>
+        <div class="help">Enable verbose debug logging (raw BLE GATT packet notifications, HID report dumps) in /tmp logs.</div>
+        <form id="systemDebugForm" onsubmit="return false;" style="margin-top: 8px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" id="sysDebugCheck" name="debugLogging" value="1">
+            <span>Enable verbose debug logging</span>
+          </label>
+          <div class="actions" style="margin-top: 10px;">
+            <button id="btnSaveDebug" type="button" class="btn btn-sm btn-primary">Save Logging Setting</button>
+            <span id="sysDebugStatus" class="subtle" style="margin-left: 8px;"></span>
+          </div>
+        </form>
+      </div>
+
+      <!-- Web UI Sign-In Auth Card -->
+      <div class="card" style="margin-bottom: 14px;">
+        <h3 style="font-size: 15px; margin-bottom: 6px;">Web UI Sign-in</h3>
+        <div class="help">Optional HTTP Basic authentication for every page, API call, and export. Leave off for trusted home networks.</div>
+        <form id="systemAuthForm" onsubmit="return false;" style="margin-top: 8px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 8px;">
+            <input type="checkbox" id="authEnabledCheck" name="authEnabled" value="1">
+            <span>Require username and password</span>
+          </label>
+          <div class="row">
+            <div>
+              <label for="authUsername">Username</label>
+              <input id="authUsername" class="form-control" value="admin">
+            </div>
+            <div>
+              <label for="authPassword">New Password</label>
+              <input id="authPassword" type="password" class="form-control" placeholder="Leave blank to keep current">
+            </div>
+          </div>
+          <div class="actions" style="margin-top: 10px;">
+            <button id="btnSaveAuth" type="button" class="btn btn-sm btn-primary">Save Sign-in Setting</button>
+            <span id="authSaveStatus" class="subtle" style="margin-left: 8px;"></span>
+          </div>
+        </form>
+      </div>
+
+      <!-- Software Update Card -->
+      <div class="card" style="margin-bottom: 14px;">
+        <h3 style="font-size: 15px; margin-bottom: 6px;">Software Update</h3>
+        <div class="help">Check GitHub release files, verify checksums, and update hub binaries.</div>
+        <form id="updateForm" onsubmit="return false;" style="margin-top: 8px;">
+          <div class="row">
+            <div>
+              <label for="updateRepo">Update Mirror URL</label>
+              <input id="updateRepo" class="form-control" value="https://raw.githubusercontent.com/Ripthulhu/harmony-hub-control/main/payload/bin/">
+            </div>
+            <div>
+              <label for="updateToken">GitHub Token (Private repos only)</label>
+              <input id="updateToken" type="password" class="form-control" placeholder="Optional token">
+            </div>
+          </div>
+          <div class="actions" style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px;">
+            <button id="updateCheck" type="button" class="btn btn-sm btn-secondary">Check for Updates</button>
+            <button id="updateInstall" type="button" class="btn btn-sm btn-primary">Install Update</button>
+            <button id="updateRefresh" type="button" class="btn btn-sm btn-ghost">Show Versions</button>
+          </div>
+          <pre id="updateLog" class="mini" style="margin-top: 8px; max-height: 120px;">Ready.</pre>
+        </form>
+      </div>
+
+      <!-- System Actions (Rediscover & Reboot) -->
+      <div class="card">
+        <h3 style="font-size: 15px; margin-bottom: 6px;">Hub Control & Actions</h3>
+        <div class="actions" style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px;">
+          <button id="btnRediscover" type="button" class="btn btn-sm btn-secondary">Refresh Home Assistant Discovery</button>
+          <button id="btnRebootHub" type="button" class="btn btn-sm btn-danger">Reboot Hub</button>
+          <span id="sysActionStatus" class="subtle" style="margin-left: 8px;"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 13. Saved Hubs View (Multi-Hub Management) -->
     <section id="view-hubs" class="view-panel">
       <div class="remote-toolbar" style="margin-bottom: 12px;">
         <div>
@@ -82,85 +1468,9 @@
       <div id="hubsList" class="card-list"></div>
     </section>
 
-    <!-- Advanced Settings View -->
-    <section id="view-settings" class="view-panel">
-      <div class="remote-toolbar" style="margin-bottom: 14px;">
-        <div>
-          <div class="remote-badge">Hub Management</div>
-          <h2 class="remote-title">Advanced Settings</h2>
-        </div>
-      </div>
-
-      <div class="settings-nav-pills" style="display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 4px;">
-        <button type="button" class="btn btn-sm btn-primary set-tab-btn" data-set-tab="sys">System</button>
-        <button type="button" class="btn btn-sm btn-secondary set-tab-btn" data-set-tab="net">Network</button>
-        <button type="button" class="btn btn-sm btn-secondary set-tab-btn" data-set-tab="bt">Bluetooth</button>
-        <button type="button" class="btn btn-sm btn-secondary set-tab-btn" data-set-tab="irlab">IR Lab</button>
-      </div>
-
-      <!-- System Panel -->
-      <div id="set-tab-sys" class="set-tab-content">
-        <div class="card" style="margin-bottom: 12px;">
-          <h3 style="font-size: 14px; margin-bottom: 8px;">Hub System & Maintenance</h3>
-          <div id="sysDiskInfo" style="font-size: 12px; color: var(--text-dim); margin-bottom: 10px; font-family: monospace;">Loading system info...</div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button type="button" class="btn btn-sm btn-secondary" id="btnCheckUpdate">Check Update</button>
-            <button type="button" class="btn btn-sm btn-danger" id="btnRebootHub">Reboot Hub</button>
-          </div>
-          <div id="sysUpdateMsg" style="font-size: 11px; color: var(--accent); margin-top: 8px;"></div>
-        </div>
-      </div>
-
-      <!-- Network Panel -->
-      <div id="set-tab-net" class="set-tab-content" style="display: none;">
-        <div class="card" style="margin-bottom: 12px;">
-          <h3 style="font-size: 14px; margin-bottom: 8px;">Network Status</h3>
-          <div id="netStatusInfo" style="font-size: 12px; color: var(--text-dim); margin-bottom: 10px; font-family: monospace;">Loading network status...</div>
-          <button type="button" class="btn btn-sm btn-secondary" id="btnScanWifi" style="margin-bottom: 10px;">Scan Wi-Fi</button>
-          <div id="wifiScanResults" class="card-list" style="margin-bottom: 10px;"></div>
-
-          <form id="formJoinWifi" style="display: flex; flex-direction: column; gap: 8px;">
-            <input type="text" id="wifiSsidInput" class="form-control" placeholder="Wi-Fi SSID">
-            <input type="password" id="wifiPskInput" class="form-control" placeholder="Wi-Fi Password">
-            <button type="submit" class="btn btn-sm btn-primary">Save & Apply Wi-Fi</button>
-          </form>
-          <div id="wifiStatusMsg" style="font-size: 11px; margin-top: 6px;"></div>
-        </div>
-      </div>
-
-      <!-- Bluetooth Panel -->
-      <div id="set-tab-bt" class="set-tab-content" style="display: none;">
-        <div class="card" style="margin-bottom: 12px;">
-          <h3 style="font-size: 14px; margin-bottom: 8px;">Bluetooth Devices</h3>
-          <div id="btStatusInfo" style="font-size: 12px; color: var(--text-dim); margin-bottom: 10px;">Loading Bluetooth info...</div>
-          <button type="button" class="btn btn-sm btn-secondary" id="btnScanBt" style="margin-bottom: 10px;">Scan Bluetooth</button>
-          <div id="btDeviceList" class="card-list"></div>
-        </div>
-      </div>
-
-      <!-- IR Lab Panel -->
-      <div id="set-tab-irlab" class="set-tab-content" style="display: none;">
-        <div class="card" style="margin-bottom: 12px;">
-          <h3 style="font-size: 14px; margin-bottom: 8px;">IR Learning Lab</h3>
-          <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px;">
-            <select id="irLabDeviceSelect" class="form-control"></select>
-            <input type="text" id="irLabCmdName" class="form-control" placeholder="Command name (e.g. HDMI 1, Power Toggle)">
-            <button type="button" class="btn btn-sm btn-primary" id="btnCaptureIr">Capture IR Signal</button>
-          </div>
-          <div id="irLabCaptureStatus" style="font-size: 12px; color: var(--text-dim); margin-bottom: 8px;">Point remote at hub and press button.</div>
-          <textarea id="irLabRawText" class="form-control" rows="3" readonly placeholder="Captured signal will appear here..." style="font-family: monospace; font-size: 11px; margin-bottom: 8px;"></textarea>
-          <div style="display: flex; gap: 8px;">
-            <button type="button" class="btn btn-sm btn-secondary" id="btnTestLearnedIr">Test Signal</button>
-            <button type="button" class="btn btn-sm btn-primary" id="btnSaveLearnedIr">Save to Device</button>
-          </div>
-          <div id="irLabSaveMsg" style="font-size: 11px; margin-top: 6px;"></div>
-        </div>
-      </div>
-    </section>
-
   </main>
 
-  <!-- Bottom Navigation Bar -->
+  <!-- Bottom Navigation Bar (Core Touch Actions) -->
   <nav class="app-nav">
     <button type="button" class="nav-item active" data-tab="activity-remote">
       <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -169,10 +1479,10 @@
         <circle cx="12" cy="12" r="2"></circle>
         <path d="M10 17h4"></path>
       </svg>
-      <span>Activity</span>
+      <span>Remote</span>
     </button>
 
-    <button type="button" class="nav-item" data-tab="device-remote">
+    <button type="button" class="nav-item" data-tab="control">
       <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="7" y="2" width="10" height="20" rx="2"></rect>
         <line x1="10" y1="6" x2="14" y2="6"></line>
@@ -183,21 +1493,29 @@
       <span>Device</span>
     </button>
 
-    <button type="button" class="nav-item" data-tab="hubs">
+    <button type="button" class="nav-item" data-tab="activities">
       <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"></circle>
-        <line x1="2" y1="12" x2="22" y2="12"></line>
-        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+        <polygon points="5 3 19 12 5 21 5 3"></polygon>
       </svg>
-      <span>Hubs</span>
+      <span>Activities</span>
     </button>
 
-    <button type="button" class="nav-item" data-tab="settings">
+    <button type="button" class="nav-item" data-tab="ir">
       <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="3"></circle>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        <path d="M2 12h20"></path>
+        <path d="M20 12l-4-4"></path>
+        <path d="M20 12l-4 4"></path>
       </svg>
-      <span>Settings</span>
+      <span>IR Setup</span>
+    </button>
+
+    <button type="button" class="nav-item" id="navItemMore">
+      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="1"></circle>
+        <circle cx="19" cy="12" r="1"></circle>
+        <circle cx="5" cy="12" r="1"></circle>
+      </svg>
+      <span>More ☰</span>
     </button>
   </nav>
 

@@ -174,7 +174,9 @@ int orch_tick(void) {
     return 0;
 }
 
-static int orch_compile_transition(const char *target_id) {
+static int orch_build_steps(const char *target_id, orch_step_t *steps, size_t max_steps, size_t *count_out) {
+    if (count_out) *count_out = 0;
+    if (!steps || max_steps == 0) return -1;
     if (!target_id || !target_id[0]) target_id = ORCH_POWEROFF_ID;
 
     struct activity_inventory *act_inv = (struct activity_inventory *)calloc(1, sizeof(*act_inv));
@@ -199,7 +201,6 @@ static int orch_compile_transition(const char *target_id) {
         if (strcmp(act_inv->items[i].id, target_id) == 0) target_idx = i;
     }
 
-    orch_step_t steps[ORCH_MAX_STEPS];
     size_t count = 0;
 
     /* 1. Stop sequence of departing activity */
@@ -436,7 +437,39 @@ static int orch_compile_transition(const char *target_id) {
     free(act_inv);
     free(ir_inv);
 
+    if (count_out) *count_out = count;
+    return 0;
+}
+
+static int orch_compile_transition(const char *target_id) {
+    orch_step_t steps[ORCH_MAX_STEPS];
+    size_t count = 0;
+    if (orch_build_steps(target_id, steps, ORCH_MAX_STEPS, &count) != 0) return -1;
     return orch_enqueue_steps(steps, count);
+}
+
+static void orch_format_preview_json(const char *target_id, const orch_step_t *steps, size_t count,
+                                    char *preview_json, size_t preview_len) {
+    if (!preview_json || preview_len == 0) return;
+    cJSON *pj = cJSON_CreateObject();
+    cJSON_AddStringToObject(pj, "target", target_id ? target_id : ORCH_POWEROFF_ID);
+    cJSON *arr = cJSON_CreateArray();
+    for (size_t i = 0; i < count; i++) {
+        cJSON *st = cJSON_CreateObject();
+        cJSON_AddStringToObject(st, "description", steps[i].description);
+        cJSON_AddNumberToObject(st, "type", (int)steps[i].type);
+        if (steps[i].device_id[0]) cJSON_AddStringToObject(st, "deviceId", steps[i].device_id);
+        if (steps[i].command_name[0]) cJSON_AddStringToObject(st, "command", steps[i].command_name);
+        cJSON_AddNumberToObject(st, "delayMs", steps[i].delay_ms);
+        cJSON_AddItemToArray(arr, st);
+    }
+    cJSON_AddItemToObject(pj, "steps", arr);
+    char *pstr = cJSON_PrintUnformatted(pj);
+    if (pstr) {
+        snprintf(preview_json, preview_len, "%s", pstr);
+        free(pstr);
+    }
+    cJSON_Delete(pj);
 }
 
 int orch_switch_activity(const char *target_activity_id, int dry_run,
@@ -450,15 +483,10 @@ int orch_switch_activity(const char *target_activity_id, int dry_run,
 
     if (dry_run) {
         if (preview_json && preview_len > 0) {
-            cJSON *pj = cJSON_CreateObject();
-            cJSON_AddStringToObject(pj, "target", target_activity_id);
-            cJSON_AddArrayToObject(pj, "steps");
-            char *pstr = cJSON_PrintUnformatted(pj);
-            if (pstr) {
-                snprintf(preview_json, preview_len, "%s", pstr);
-                free(pstr);
-            }
-            cJSON_Delete(pj);
+            orch_step_t steps[ORCH_MAX_STEPS];
+            size_t count = 0;
+            orch_build_steps(target_activity_id, steps, ORCH_MAX_STEPS, &count);
+            orch_format_preview_json(target_activity_id, steps, count, preview_json, preview_len);
         }
         return 0;
     }
@@ -493,15 +521,10 @@ int orch_power_off(int dry_run, char *preview_json, size_t preview_len) {
 
     if (dry_run) {
         if (preview_json && preview_len > 0) {
-            cJSON *pj = cJSON_CreateObject();
-            cJSON_AddStringToObject(pj, "target", ORCH_POWEROFF_ID);
-            cJSON_AddArrayToObject(pj, "steps");
-            char *pstr = cJSON_PrintUnformatted(pj);
-            if (pstr) {
-                snprintf(preview_json, preview_len, "%s", pstr);
-                free(pstr);
-            }
-            cJSON_Delete(pj);
+            orch_step_t steps[ORCH_MAX_STEPS];
+            size_t count = 0;
+            orch_build_steps(ORCH_POWEROFF_ID, steps, ORCH_MAX_STEPS, &count);
+            orch_format_preview_json(ORCH_POWEROFF_ID, steps, count, preview_json, preview_len);
         }
         return 0;
     }

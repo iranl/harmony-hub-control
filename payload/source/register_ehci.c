@@ -12,6 +12,11 @@
 #endif
 
 int main(int argc, char **argv) {
+    if (access("/sys/devices/platform/ar7240-ehci.0", F_OK) == 0) {
+        printf("ar7240-ehci.0 already registered, skipping.\n");
+        return 0;
+    }
+
     int fd = open("/dev/mem", O_RDWR | O_SYNC);
     if (fd < 0) {
         perror("open /dev/mem");

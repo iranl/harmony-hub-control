@@ -1,113 +1,53 @@
 #!/bin/sh
 
-# pimento initialization
-TDE=$(cat /sys/class/input/input0/tde)
-
-if [ ${TDE:0:1} == "1" ] && [ -x /data/codex/recovery_ap.sh ]; then
-	echo "*** Codex recovery AP bootmode ***"
-	load_modules /etc/modules.wlan
-	/data/codex/recovery_ap.sh boot-tde &
-	return
-fi
-
-# initialize the wlan and wpa_supplicant
-if [ ${TDE:0:1} == "1" ] && [ -e /sbin/nart ]; then
-	echo "*** TDE bootmode ***"
-
-	# fixed ethernet ip address for manufacturing
-	ifconfig eth1 192.168.1.108
-
-	load_modules /etc/modules.tde
-	/sbin/nart &
-else
-	# If hub goes into TDE mode soft reboot.
-	if [ ${TDE:0:1} == "1" ]; then
-		if [ ! -e /etc/tdeinfo ]; then
-			echo "0" > /etc/tdeinfo
-		fi
-		count=$(cat /etc/tdeinfo)
-		if [ $count -lt 5 ]; then
-			count=`expr $count + 1`
-			echo $count > /etc/tdeinfo
-			reboot
-		fi
-	fi
-	# start ethernet dhcp for development boards
-	ifup eth1 &
-
-	load_modules /etc/modules.wlan
-	/sbin/wlanconfig ath0 create wlandev wifi0 wlanmode sta
-	/usr/sbin/wpa_supplicant -s -iath0 -c /etc/wpa_supplicant.conf &
-fi
-
-# memory test
-if [ -e /etc/memtester ]; then
-	LOOPS=$(cat /etc/memtester)
-	echo "*** memtester loop=${LOOPS} ***"
-
-	ifup -a
-	/usr/sbin/dropbear
-	/usr/bin/iperf -s > /dev/null &
-
-	echo 3 > /sys/class/input/input0/led
-
-	if [ -e /cache/memtester.run ]; then
-		# previous test crashed
-		echo 1 > /sys/class/input/input0/led
-		while true; do sleep 60; done
-	fi
-
-	echo "" > /cache/memtester.run
-	/usr/bin/memtester 4M ${LOOPS} 2>&1 >> /cache/memtester.log
-	if [ $? == 0 ]; then
-		rm /cache/memtester.run
-		echo 4 > /sys/class/input/input0/led
-	else
-		echo 1 > /sys/class/input/input0/led
-	fi
-	while true; do sleep 60; done
-fi
-
-# Prevent stock Logitech luaworks from executing (frees ~12MB RAM)
-chmod -x /opt/luaworks/luaworks 2>/dev/null || true
-
-# Disable hardware watchdog completely (prevents 60-second reboots when luaworks is dead)
+# 0. Neuter watchdog and luaworks immediately
 touch /etc/nowatchdog 2>/dev/null || true
+chmod -x /usr/bin/watchdog /opt/luaworks/luaworks 2>/dev/null || true
 killall -9 watchdog 2>/dev/null || true
 
 
-# here be dragons ..
-# as Pimento has limited RAM we force the kernel to always overcommit memory
-# if we actually run out of memory the OOM killer is let lose, and it will
-# result in watchdog reboot
-echo 1 > /proc/sys/vm/overcommit_memory
 
-# hardware version
-MFG_DATA=/dev/$(grep mfg /proc/mtd | cut -d: -f1)
-HW_VERSION=$(sed -n '/hw_ver/{N N N N s/^[^0-9]*\([0-9][0-9]\)/\1/p}' $MFG_DATA)
-
-# initialize bluetooth
-BUILDNAME=$(/usr/sbin/bccmd -t bcsp buildname)
-case "$BUILDNAME" in
-	*A06*) PSKEYS=csr8811-a06.psr ;;
-	*A08*) case "$HW_VERSION" in
-		00.40) PSKEYS=csr8811-a08-pb1.psr ;;
-		*)     PSKEYS=csr8811-a08.psr ;;
-	       esac ;;
-	*) echo "ERROR no bluetooth?"; return ;;
-esac
-
-cat /lib/firmware/$PSKEYS > /tmp/pskeys.psr
-
-# bluetooth address
-cat /sys/class/net/ath0/address | sed 's/\([0-9a-f][0-9a-f]\):\([0-9a-f][0-9a-f]\):\([0-9a-f][0-9a-f]\):\([0-9a-f][0-9a-f]\):\([0-9a-f][0-9a-f]\):\([0-9a-f][0-9a-f]\).*/\&0x0001 = 0x\4 0x\5\6 0x\3 0x\1\2/' >> /tmp/pskeys.psr
-
-# load bluetooth pskeys
-/usr/sbin/bccmd -t bcsp psload -r /tmp/pskeys.psr
-/usr/sbin/hciattach ttyS0 bcsp
-/usr/sbin/hciconfig hci0 up
-/usr/sbin/hciconfig hci0 sspmode 1
-
+# Start core services and Dropbear SSH immediately
 if [ -x /data/codex/init.sh ]; then
 	/data/codex/init.sh &
 fi
+
+# Initialize WLAN, wpa_supplicant, and background DHCP
+load_modules /etc/modules.wlan 2>/dev/null || true
+/sbin/wlanconfig ath0 create wlandev wifi0 wlanmode sta 2>/dev/null || true
+/usr/sbin/wpa_supplicant -s -iath0 -c /etc/wpa_supplicant.conf &
+udhcpc -i ath0 -b 2>/dev/null &
+
+# Kernel overcommit
+echo 1 > /proc/sys/vm/overcommit_memory
+
+# Hardware version & Bluetooth (backgrounded so it never hangs or aborts boot)
+(
+	MFG_DATA=/dev/$(grep mfg /proc/mtd | cut -d: -f1)
+	HW_VERSION=$(sed -n '/hw_ver/{N N N N s/^[^0-9]*\([0-9][0-9]\)/\1/p}' $MFG_DATA 2>/dev/null)
+
+	BUILDNAME=$(/usr/sbin/bccmd -t bcsp buildname 2>/dev/null)
+	case "$BUILDNAME" in
+		*A06*) PSKEYS=csr8811-a06.psr ;;
+		*A08*) case "$HW_VERSION" in
+			00.40) PSKEYS=csr8811-a08-pb1.psr ;;
+			*)     PSKEYS=csr8811-a08.psr ;;
+		       esac ;;
+		*) exit 0 ;;
+	esac
+
+	[ -f "/lib/firmware/$PSKEYS" ] || exit 0
+	cat /lib/firmware/$PSKEYS > /tmp/pskeys.psr
+
+	for i in 1 2 3 4 5; do
+		if [ -f /sys/class/net/ath0/address ]; then break; fi
+		sleep 1
+	done
+
+	cat /sys/class/net/ath0/address 2>/dev/null | sed 's/\([0-9a-f][0-9a-f]\):\([0-9a-f][0-9a-f]\):\([0-9a-f][0-9a-f]\):\([0-9a-f][0-9a-f]\):\([0-9a-f][0-9a-f]\):\([0-9a-f][0-9a-f]\).*/\&0x0001 = 0x\4 0x\5\6 0x\3 0x\1\2/' >> /tmp/pskeys.psr
+
+	/usr/sbin/bccmd -t bcsp psload -r /tmp/pskeys.psr 2>/dev/null
+	/usr/sbin/hciattach ttyS0 bcsp 2>/dev/null
+	/usr/sbin/hciconfig hci0 up 2>/dev/null
+	/usr/sbin/hciconfig hci0 sspmode 1 2>/dev/null
+) &

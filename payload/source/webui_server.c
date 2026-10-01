@@ -36,6 +36,7 @@
 #include "webui_config.h"
 #include "webui_html.h"
 #include "webui_server.h"
+#include "mqtt_client.h"
 
 #include "codex_webui_html.c"
 
@@ -349,6 +350,42 @@ static void handle_client(int client) {
         render_remote_pair_json(client, &req);
     } else if (strcmp(req.method, "GET") == 0 && strcmp(req.path, "/api/remote-pair-status") == 0) {
         render_remote_pair_status_json(client);
+    } else if (strncmp(req.path, "/api/rf", 7) == 0) {
+        int rfsock = socket(AF_INET, SOCK_STREAM, 0);
+        if (rfsock >= 0) {
+            struct sockaddr_in sin;
+            memset(&sin, 0, sizeof(sin));
+            sin.sin_family = AF_INET;
+            sin.sin_port = htons(8092);
+            sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+
+            struct timeval tv = { .tv_sec = 2, .tv_usec = 0 };
+            setsockopt(rfsock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+            setsockopt(rfsock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+            if (connect(rfsock, (struct sockaddr *)&sin, sizeof(sin)) == 0) {
+                char proxy_req[512];
+                int prlen = snprintf(proxy_req, sizeof(proxy_req),
+                    "%s %s HTTP/1.1\r\nHost: 127.0.0.1:8092\r\nConnection: close\r\n\r\n",
+                    req.method, req.path);
+                write(rfsock, proxy_req, prlen);
+
+                char resp_buf[1024];
+                ssize_t rn;
+                while ((rn = read(rfsock, resp_buf, sizeof(resp_buf))) > 0) {
+                    write(client, resp_buf, rn);
+                }
+                close(rfsock);
+                close(client);
+                return;
+            }
+            close(rfsock);
+        }
+        cJSON *err = cJSON_CreateObject();
+        cJSON_AddStringToObject(err, "error", "codex_rf daemon unavailable on port 8092");
+        send_cjson_resp(client, "502 Bad Gateway", err);
+        cJSON_Delete(err);
+
     } else if (strcmp(req.method, "GET") == 0 && strcmp(req.path, "/api/disk-space") == 0) {
         char diskspace[1024] = {0};
         run_cmd("/data/codex/bin/check_space 2>&1 || check_space 2>&1", diskspace, sizeof(diskspace));
@@ -437,6 +474,18 @@ static void handle_client(int client) {
         cJSON_AddBoolToObject(res, "usbPcConnected", st.usb_pc_connected);
         send_cjson_resp(client, "200 OK", res);
         cJSON_Delete(res);
+    } else if (strcmp(req.method, "GET") == 0 && strcmp(req.path, "/api/mqtt-status") == 0) {
+        struct mqtt_config cfg;
+        load_mqtt(&cfg);
+        int connected = mqtt_is_connected() || tcp_established(cfg.host, cfg.port);
+        cJSON *res = cJSON_CreateObject();
+        cJSON_AddBoolToObject(res, "ok", 1);
+        cJSON_AddBoolToObject(res, "connected", connected);
+        cJSON_AddBoolToObject(res, "enabled", cfg.enabled);
+        cJSON_AddStringToObject(res, "host", cfg.host);
+        cJSON_AddNumberToObject(res, "port", cfg.port);
+        send_cjson_resp(client, "200 OK", res);
+        cJSON_Delete(res);
     } else if (strcmp(req.method, "POST") == 0 && strcmp(req.path, "/system") == 0) {
         handle_system(client, &req);
     } else if (strcmp(req.method, "POST") == 0 && strcmp(req.path, "/import") == 0) {
@@ -512,6 +561,9 @@ void webui_server_close(int fd) {
 }
 
 void webui_handle_client(int client) {
+    struct timeval tv = { .tv_sec = 3, .tv_usec = 0 };
+    setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
     handle_client(client);
     if (client != s_cap_client_fd) {
         close(client);

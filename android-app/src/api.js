@@ -1,7 +1,7 @@
 /**
  * Harmony Hub Client API
- * Direct network communication with codex_daemon HTTP API.
- * Supports HTTP Basic Authentication and CORS.
+ * Direct network communication with codex_daemon HTTP & WebSocket API.
+ * Supports HTTP Basic Authentication, CORS, and AJAX JSON messaging.
  */
 
 export class HarmonyClient {
@@ -42,9 +42,7 @@ export class HarmonyClient {
           }
         } catch {}
       };
-      this.ws.onerror = () => {
-        // Triggers onclose
-      };
+      this.ws.onerror = () => {};
       this.ws.onclose = () => {
         if (this.onWsStatus) this.onWsStatus(false);
         this.scheduleWsReconnect();
@@ -94,7 +92,7 @@ export class HarmonyClient {
     };
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), options.timeout || 8000);
+    const timeout = setTimeout(() => controller.abort(), options.timeout || 12000);
     opts.signal = controller.signal;
 
     try {
@@ -103,25 +101,28 @@ export class HarmonyClient {
       if (res.status === 401) {
         throw new Error('Authentication failed. Check hub credentials.');
       }
+      const text = await res.text();
+      let j;
+      try {
+        j = JSON.parse(text);
+      } catch {
+        j = null;
+      }
+
       if (!res.ok) {
         let errMsg = `Hub returned HTTP ${res.status}`;
-        try {
-          const text = await res.text();
-          const j = JSON.parse(text);
-          if (j.error) errMsg = j.error;
-          else if (j.reply) errMsg = j.reply;
-        } catch {}
+        if (j && (j.error || j.message || j.reply)) {
+          errMsg = j.error || j.message || j.reply;
+        } else if (text && text.length < 200 && !text.includes('<!DOCTYPE')) {
+          errMsg = text;
+        }
         if (res.status === 409 && errMsg.startsWith('Hub returned')) {
           errMsg = 'Activity switch already in progress';
         }
         throw new Error(errMsg);
       }
-      const text = await res.text();
-      try {
-        return JSON.parse(text);
-      } catch {
-        return { ok: true, text };
-      }
+
+      return j !== null ? j : text;
     } catch (err) {
       clearTimeout(timeout);
       if (err.name === 'AbortError') {
@@ -131,6 +132,36 @@ export class HarmonyClient {
     }
   }
 
+  async postForm(path, data = {}) {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(data)) {
+      if (v !== undefined && v !== null) {
+        params.append(k, String(v));
+      }
+    }
+    return this.request(path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json, text/plain, */*',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: params.toString()
+    });
+  }
+
+  async postJson(path, data = {}) {
+    return this.request(path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/plain, */*',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify(data)
+    });
+  }
+
   async testConnection() {
     try {
       const data = await this.request('/api/inventory', { timeout: 4000 });
@@ -138,14 +169,6 @@ export class HarmonyClient {
     } catch (err) {
       return { ok: false, error: err.message };
     }
-  }
-
-  async getInventory() {
-    return this.request('/api/inventory');
-  }
-
-  async getActivities(options = {}) {
-    return this.request('/api/activities', options);
   }
 
   isWsConnected() {
@@ -162,6 +185,42 @@ export class HarmonyClient {
     }
   }
 
+  /* Core Inventory & Activities */
+  async getInventory() {
+    return this.request('/api/inventory');
+  }
+
+  async getActivities(options = {}) {
+    return this.request('/api/activities', options);
+  }
+
+  async startActivity(activityId) {
+    if (this.sendWs({ action: 'start_activity', id: String(activityId) })) {
+      return { ok: true, ws: true };
+    }
+    return this.postJson('/api/activity-start', { id: String(activityId) });
+  }
+
+  async stopActivity() {
+    if (this.sendWs({ action: 'stop_activity' })) {
+      return { ok: true, ws: true };
+    }
+    return this.postJson('/api/activity-stop', {});
+  }
+
+  async saveActivity(data) {
+    return this.postJson('/api/activity-save', data);
+  }
+
+  async deleteActivity(id) {
+    return this.postJson('/api/activity-delete', { id: String(id) });
+  }
+
+  async testActivitySequence(steps) {
+    return this.postJson('/api/activity-test-sequence', { steps: String(steps) });
+  }
+
+  /* Device Control & Commands */
   async getDeviceCommands(deviceId) {
     if (!deviceId) return [];
     try {
@@ -173,97 +232,209 @@ export class HarmonyClient {
     }
   }
 
-  async startActivity(activityId) {
-    if (this.sendWs({ action: 'start_activity', id: String(activityId) })) {
-      return { ok: true, ws: true };
-    }
-    return this.request('/api/activity-start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: String(activityId) })
-    });
-  }
-
-  async stopActivity() {
-    if (this.sendWs({ action: 'stop_activity' })) {
-      return { ok: true, ws: true };
-    }
-    return this.request('/api/activity-stop', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
-    });
-  }
-
   async sendCommand(deviceId, command) {
     if (this.sendWs({ action: 'send_command', deviceId: String(deviceId), command: String(command) })) {
       return { ok: true, ws: true };
     }
-    return this.request('/api/ir-send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        deviceId: String(deviceId),
-        command: String(command)
-      })
+    return this.postJson('/api/ir-send', {
+      deviceId: String(deviceId),
+      command: String(command)
     });
   }
 
   async sendBtCommand(deviceId, command) {
-    return this.request('/api/bt-saved-command', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        deviceId: String(deviceId),
-        command: String(command)
-      })
+    return this.postJson('/api/bt-saved-command', {
+      deviceId: String(deviceId),
+      command: String(command)
     });
+  }
+
+  async sendBtKey(code, action = 'tap') {
+    return this.postJson('/api/bt-key', { code, action });
   }
 
   async sendBtText(text) {
     if (this.sendWs({ action: 'bt_text', text: String(text) })) {
       return { ok: true, ws: true };
     }
-    return this.request('/api/bt-text', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: String(text) })
-    });
+    return this.postJson('/api/bt-text', { text: String(text) });
   }
 
-  /* Advanced / Hub Management APIs */
-  async getNetworkStatus() {
-    return this.request('/api/network-status');
+  async runBtScript(script, delay = 35) {
+    return this.postJson('/api/bt-script', { script: String(script), delay: Number(delay) || 35 });
   }
 
-  async getWifiScan() {
-    return this.request('/api/wifi-scan');
+  async saveBtCommand(deviceId, name, script) {
+    return this.postForm('/bt/command', { deviceId, name, script });
   }
 
-  async saveWifi(ssid, psk) {
-    return this.request('/wifi', {
-      method: 'POST',
-      body: new URLSearchParams({ ssid: ssid || '', psk: psk || '' })
-    });
+  async deleteBtCommand(deviceId, command) {
+    return this.postForm('/bt/delete-command', { deviceId, command });
   }
 
   async getBtStatus() {
     return this.request('/api/bt-status');
   }
 
-  async startBtScan() {
-    return this.request('/api/remote-scan', { method: 'POST' });
-  }
-
-  async pairBt(bdaddr, transport = 32) {
-    return this.request('/api/remote-pair', {
-      method: 'POST',
-      body: new URLSearchParams({ bdaddr: bdaddr || '', transport: String(transport) })
+  async setBtPairing(enable, name = '', targetDev = '') {
+    return this.postJson('/api/bt-pairing', {
+      enable: enable ? 1 : 0,
+      name: name || 'Harmony Keyboard',
+      targetDev: targetDev || ''
     });
   }
 
+  async connectBt(bdaddr) {
+    return this.postJson('/api/bt-connect', { bdaddr });
+  }
+
+  async disconnectBt(bdaddr = '') {
+    return this.postJson('/api/bt-disconnect', { bdaddr: bdaddr || '' });
+  }
+
+  async linkBtDevice(bdaddr, deviceId) {
+    return this.postJson('/api/bt-link-device', { bdaddr, deviceId });
+  }
+
+  /* Homatics B25 / Physical BT Remote Mapping */
+  async getRemoteMappings() {
+    return this.request('/api/remote-mapping');
+  }
+
+  async saveRemoteMappings(data) {
+    return this.postJson('/api/remote-mapping-save', data);
+  }
+
+  async getUiRemoteLayout() {
+    return this.request('/api/ui-remote-layout');
+  }
+
+  async saveUiRemoteLayout(layouts) {
+    return this.postJson('/api/ui-remote-layout', layouts);
+  }
+
+  async scanBtRemote() {
+    return this.request('/api/remote-scan', { method: 'POST' });
+  }
+
+  async pairBtRemote(bdaddr, transport = 32) {
+    return this.postForm('/api/remote-pair', { bdaddr: bdaddr || '', transport: String(transport) });
+  }
+
+  async getBtRemotePairStatus() {
+    return this.request('/api/remote-pair-status');
+  }
+
+  /* IR Setup & Learning */
+  async captureIr() {
+    return this.request('/api/capture', { method: 'POST' });
+  }
+
+  async testLearnedIr(data) {
+    return this.postJson('/api/ir-test-learned', data);
+  }
+
+  async saveLearnedCommand(data) {
+    return this.postForm('/ir/command', data);
+  }
+
+  async saveNewDevice(data) {
+    return this.postForm('/ir/new-device', data);
+  }
+
+  async saveDeviceDetails(data) {
+    return this.postForm('/ir/device', data);
+  }
+
+  async deleteDevice(deviceId) {
+    return this.postForm('/ir/delete-device', { deviceId });
+  }
+
+  async saveDevicePower(data) {
+    return this.postForm('/ir/device-power', data);
+  }
+
+  async saveDeviceMqtt(data) {
+    return this.postForm('/ir/device-mqtt', data);
+  }
+
+  async testDeviceMqtt(deviceId) {
+    return this.postJson('/api/device-mqtt-test', { deviceId });
+  }
+
+  async deleteCommand(deviceId, command) {
+    return this.postForm('/ir/delete-command', { deviceId, command });
+  }
+
+  async importIrdb(data) {
+    return this.postForm('/ir/irdb-import', data);
+  }
+
+  /* Bulk IR Lab */
+  async sendBatchIr(data) {
+    return this.postJson('/api/ir-batch-send', data);
+  }
+
+  async cancelBatchIr(runId) {
+    return this.postJson('/api/ir-cancel', { runId });
+  }
+
+  async clearLabTarget(deviceId) {
+    return this.postJson('/api/ir-lab-clear', { deviceId });
+  }
+
+  /* MQTT */
+  async getMqttStatus() {
+    return this.request('/api/mqtt-status');
+  }
+
+  async saveMqtt(data) {
+    return this.postForm('/mqtt', data);
+  }
+
+  /* Network (Wi-Fi & Ethernet) */
+  async getNetworkStatus() {
+    return this.request('/api/network-status');
+  }
+
+  async saveEthernet(data) {
+    return this.postForm('/ethernet', data);
+  }
+
+  async saveWifi(data) {
+    return this.postForm('/wifi', data);
+  }
+
+  /* Backup & Restore */
+  getExportUrl(target) {
+    const host = this.hub.host || '127.0.0.1';
+    const port = this.hub.port || 8080;
+    return `http://${host}:${port}/export/${target}`;
+  }
+
+  async fetchExportText(target) {
+    return this.request(`/export/${target}`);
+  }
+
+  async restoreBackup(target, payload) {
+    return this.postForm('/import', { target, payload });
+  }
+
+  /* System & Maintenance */
   async getSystemDisk() {
     return this.request('/api/disk-space');
+  }
+
+  async getWebUiHtml() {
+    return this.request('/');
+  }
+
+  async saveSystemAction(action, extra = {}) {
+    return this.postForm('/system', { action, ...extra });
+  }
+
+  async rebootHub() {
+    return this.saveSystemAction('reboot');
   }
 
   async getUpdateStatus() {
@@ -271,36 +442,10 @@ export class HarmonyClient {
   }
 
   async checkUpdate(force = false) {
-    return this.request('/api/update-check-state', {
-      method: 'POST',
-      body: new URLSearchParams({ check: force ? '1' : '0' })
-    });
+    return this.postForm('/api/update-check-state', { check: force ? '1' : '0' });
   }
 
-  async rebootHub() {
-    return this.request('/system/reboot', {
-      method: 'POST',
-      body: new URLSearchParams({ action: 'reboot' })
-    });
-  }
-
-  async captureIr() {
-    return this.request('/api/capture', { method: 'POST' });
-  }
-
-  async testLearnedIr(data) {
-    return this.request('/api/ir-test-learned', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data || {})
-    });
-  }
-
-  async saveLearnedCommand(data) {
-    return this.request('/ir/command', {
-      method: 'POST',
-      body: new URLSearchParams(data || {})
-    });
+  async applyUpdate(token = '', repo = '') {
+    return this.postForm('/api/update-apply', { token: token || '', repo: repo || '' });
   }
 }
-

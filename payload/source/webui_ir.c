@@ -365,6 +365,11 @@ void render_inventory_json(int fd) {
 
             int is_always_on = 0;
             int power_on_delay = 1500;
+            struct activity_step *pon_steps = NULL;
+            int pon_count = 0;
+            struct activity_step *poff_steps = NULL;
+            int poff_count = 0;
+
             cJSON *feats = cJSON_GetObjectItemCaseSensitive(item, "DeviceFeatures");
             if (feats && cJSON_IsArray(feats)) {
                 cJSON *f = NULL;
@@ -375,12 +380,49 @@ void render_inventory_json(int fd) {
                         if (pod && cJSON_IsNumber(pod)) power_on_delay = pod->valueint;
                         cJSON *pao = cJSON_GetObjectItemCaseSensitive(f, "IsPowerAlwaysOn");
                         if (pao && cJSON_IsTrue(pao)) is_always_on = 1;
+
+                        cJSON *pon = cJSON_GetObjectItemCaseSensitive(f, "PowerOnActions");
+                        if (pon && cJSON_IsArray(pon)) {
+                            parse_power_actions_cjson(pon, id_str, &pon_steps, &pon_count);
+                        }
+                        cJSON *poff = cJSON_GetObjectItemCaseSensitive(f, "PowerOffActions");
+                        if (poff && cJSON_IsArray(poff)) {
+                            parse_power_actions_cjson(poff, id_str, &poff_steps, &poff_count);
+                        }
                         break;
                     }
                 }
             }
             cJSON_AddBoolToObject(d_out, "isPowerAlwaysOn", is_always_on);
             cJSON_AddNumberToObject(d_out, "powerOnDelay", power_on_delay);
+
+            cJSON *idd = cJSON_GetObjectItemCaseSensitive(dev, "InterDeviceDelay");
+            int inter_device_delay = (idd && cJSON_IsNumber(idd)) ? idd->valueint : 100;
+            cJSON_AddNumberToObject(d_out, "interDeviceDelay", inter_device_delay);
+
+            cJSON *pon_arr = cJSON_CreateArray();
+            for (int s = 0; s < pon_count; s++) {
+                cJSON *so = cJSON_CreateObject();
+                cJSON_AddStringToObject(so, "type", pon_steps[s].type);
+                cJSON_AddStringToObject(so, "command", pon_steps[s].command);
+                cJSON_AddNumberToObject(so, "delayMs", pon_steps[s].delay_ms);
+                cJSON_AddNumberToObject(so, "order", pon_steps[s].order);
+                cJSON_AddItemToArray(pon_arr, so);
+            }
+            cJSON_AddItemToObject(d_out, "powerOnSteps", pon_arr);
+            if (pon_steps) free(pon_steps);
+
+            cJSON *poff_arr = cJSON_CreateArray();
+            for (int s = 0; s < poff_count; s++) {
+                cJSON *so = cJSON_CreateObject();
+                cJSON_AddStringToObject(so, "type", poff_steps[s].type);
+                cJSON_AddStringToObject(so, "command", poff_steps[s].command);
+                cJSON_AddNumberToObject(so, "delayMs", poff_steps[s].delay_ms);
+                cJSON_AddNumberToObject(so, "order", poff_steps[s].order);
+                cJSON_AddItemToArray(poff_arr, so);
+            }
+            cJSON_AddItemToObject(d_out, "powerOffSteps", poff_arr);
+            if (poff_steps) free(poff_steps);
 
             cJSON *cp = cJSON_GetObjectItemCaseSensitive(dev, "ControlPort");
             cJSON_AddNumberToObject(d_out, "controlPort", (cp && cJSON_IsNumber(cp)) ? cp->valueint : 7);

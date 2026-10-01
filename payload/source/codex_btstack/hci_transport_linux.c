@@ -150,30 +150,41 @@ static int hci_transport_linux_open(void) {
     struct sockaddr_hci addr;
     struct hci_filter flt;
 
-    hci_socket = socket(AF_BLUETOOTH, SOCK_RAW, BTPROTO_HCI);
+    for (int retry = 0; retry < 15; retry++) {
+        hci_socket = socket(AF_BLUETOOTH, SOCK_RAW, BTPROTO_HCI);
+        if (hci_socket < 0) {
+            fprintf(stderr, "[hci_transport_linux] Failed to create HCI socket: %s\n", strerror(errno));
+            sleep(1);
+            continue;
+        }
+
+        fcntl(hci_socket, F_SETFD, FD_CLOEXEC);
+        fcntl(hci_socket, F_SETFL, fcntl(hci_socket, F_GETFL, 0) | O_NONBLOCK);
+
+        // Bring up adapter if needed
+        ioctl(hci_socket, HCIDEVUP, hci_transport_config_linux->device_id);
+
+        memset(&addr, 0, sizeof(addr));
+        addr.hci_family = AF_BLUETOOTH;
+        addr.hci_dev = (unsigned short)hci_transport_config_linux->device_id;
+        addr.hci_channel = HCI_CHANNEL_RAW;
+
+        if (bind(hci_socket, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
+            break;
+        }
+
+        if (retry < 14) {
+            fprintf(stderr, "[hci_transport_linux] Waiting for hci%u to appear (%d/15): %s\n",
+                    addr.hci_dev, retry + 1, strerror(errno));
+            close(hci_socket);
+            hci_socket = -1;
+            sleep(1);
+        }
+    }
+
     if (hci_socket < 0) {
-        fprintf(stderr, "[hci_transport_linux] Failed to create HCI socket: %s\n", strerror(errno));
-        return -1;
-    }
-
-    fcntl(hci_socket, F_SETFD, FD_CLOEXEC);
-    fcntl(hci_socket, F_SETFL, fcntl(hci_socket, F_GETFL, 0) | O_NONBLOCK);
-
-    // Bring up adapter if needed
-    if (ioctl(hci_socket, HCIDEVUP, hci_transport_config_linux->device_id) < 0 && errno != EALREADY) {
-        fprintf(stderr, "[hci_transport_linux] Note: ioctl HCIDEVUP returned: %s\n", strerror(errno));
-    }
-
-    memset(&addr, 0, sizeof(addr));
-    addr.hci_family = AF_BLUETOOTH;
-    addr.hci_dev = (unsigned short)hci_transport_config_linux->device_id;
-    addr.hci_channel = HCI_CHANNEL_RAW;
-
-    if (bind(hci_socket, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         fprintf(stderr, "[hci_transport_linux] Failed to bind HCI socket to hci%u: %s\n",
-                addr.hci_dev, strerror(errno));
-        close(hci_socket);
-        hci_socket = -1;
+                (unsigned short)hci_transport_config_linux->device_id, strerror(errno));
         return -1;
     }
     fprintf(stderr, "[hci_transport_linux] Bound socket to hci%u (RAW channel)\n", addr.hci_dev);

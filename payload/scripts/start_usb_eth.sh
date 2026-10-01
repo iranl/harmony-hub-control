@@ -1,12 +1,7 @@
 #!/bin/sh
 # USB Ethernet Host mode activator
-if [ -d /mnt/data/usb_eth ]; then
-  DIR="/mnt/data/usb_eth"
-elif [ -d /data/codex/usb_eth ]; then
-  DIR="/data/codex/usb_eth"
-else
-  DIR="$(cd "$(dirname "$0")" && pwd)"
-fi
+MODULES_DIR="/data/codex/modules"
+BIN_DIR="/data/codex/bin"
 
 echo "[USB_ETH] Switching USB controller to Host mode..."
 killall usbhid 2>/dev/null
@@ -18,26 +13,31 @@ insmod /lib/modules/2.6.31-g89d565c/kernel/drivers/usb/core/usbcore.ko 2>/dev/nu
 insmod /lib/modules/2.6.31-g89d565c/kernel/drivers/usb/host/ehci-hcd.ko 2>/dev/null
 
 # Register dormant platform device ar7240-ehci.0 via sys_call_table
-if [ -x "$DIR/register_ehci" ]; then
-  "$DIR/register_ehci"
-elif [ -x /data/codex/bin/register_ehci ]; then
-  /data/codex/bin/register_ehci
-elif [ -x /usr/sbin/register_ehci ]; then
-  /usr/sbin/register_ehci
-else
-  echo "[USB_ETH] Error: register_ehci not found!" >&2
+if [ ! -d /sys/devices/platform/ar7240-ehci.0/driver ]; then
+  if [ -x "$BIN_DIR/register_ehci" ]; then
+    "$BIN_DIR/register_ehci"
+  elif [ -x /usr/sbin/register_ehci ]; then
+    /usr/sbin/register_ehci
+  else
+    echo "[USB_ETH] Error: register_ehci not found!" >&2
+  fi
 fi
 
-# Load network core + NIC drivers
-for mod in usbnet asix cdc_ether r8152 smsc95xx dm9601 rtl8150 rndis_host cdc_subset zaurus; do
-  if [ -f "$DIR/$mod.ko" ]; then
-    insmod "$DIR/$mod.ko" 2>/dev/null
-  elif [ -f "$DIR/modules/$mod.ko" ]; then
-    insmod "$DIR/modules/$mod.ko" 2>/dev/null
-  elif [ -f "/mnt/data/usb_eth/$mod.ko" ]; then
-    insmod "/mnt/data/usb_eth/$mod.ko" 2>/dev/null
+# Load network core + NIC drivers (r8152 first to prevent generic cdc_ether stealing it)
+for mod in r8152 usbnet asix smsc95xx dm9601 rtl8150 rndis_host cdc_subset zaurus cdc_ether; do
+  if [ -f "$MODULES_DIR/$mod.ko" ]; then
+    insmod "$MODULES_DIR/$mod.ko" 2>/dev/null
+  fi
+done
+
+# Bring up any detected USB network interface
+for dev in /sys/class/net/eth* /sys/class/net/usb*; do
+  [ -d "$dev" ] || continue
+  name="${dev##*/}"
+  if [ "$name" != "eth0" ] && [ "$name" != "eth1" ]; then
+    ifconfig "$name" up 2>/dev/null || true
   fi
 done
 
 echo "[USB_ETH] Done! Active USB drivers:"
-lsmod | grep -E "r8152|asix|cdc_ether|smsc95xx|dm9601|rtl8150|usbnet|ehci_hcd"
+lsmod | grep -e r8152 -e asix -e cdc_ether -e smsc95xx -e dm9601 -e rtl8150 -e usbnet -e ehci_hcd

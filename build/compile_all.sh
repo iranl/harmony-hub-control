@@ -77,7 +77,25 @@ build_btstack() {
     "$SCRIPT_DIR/build_btstack.sh"
 }
 
+build_sync() {
+    echo "[-] Building codex_sync..."
+    "$CC" $CFLAGS -o "$BIN/codex_sync" payload/source/codex_sync.c
+}
+
+build_rf() {
+    echo "[-] Building codex_rf..."
+    "$CC" $CFLAGS -lpthread -o "$BIN/codex_rf" payload/source/codex_rf.c
+}
+
+build_elite() {
+    echo "[-] Building codex_elite (ARM)..."
+    arm-linux-gnueabi-gcc -static -Os -s -Wall -Ipayload/source payload/source/codex_elite.c -o "$BIN/codex_elite" -lpthread
+}
+
 case "$TARGET" in
+    elite)
+        build_elite
+        ;;
     daemon)
         build_daemon
         ;;
@@ -99,6 +117,12 @@ case "$TARGET" in
     mknod)
         build_mknod
         ;;
+    sync)
+        build_sync
+        ;;
+    rf)
+        build_rf
+        ;;
     check_space)
         build_check_space
         ;;
@@ -109,12 +133,14 @@ case "$TARGET" in
         build_daemon
         build_register_ehci
         build_mknod
+        build_sync
+        build_rf
         build_check_space
         build_btstack
         ;;
     *)
         echo "Unknown target: $TARGET"
-        echo "Usage: $0 [all|daemon|sntp|portal|dhcpd|btstack|register_ehci|mknod|check_space]"
+        echo "Usage: $0 [all|daemon|sntp|portal|dhcpd|btstack|register_ehci|mknod|check_space|rf]"
         exit 1
         ;;
 esac

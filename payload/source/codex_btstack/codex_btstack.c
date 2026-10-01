@@ -2531,7 +2531,19 @@ int main(int argc, const char *argv[]) {
 
     // 12. Power on
     app_state = APP_W4_WORKING;
-    hci_power_control(HCI_POWER_ON);
+    int pwr_err = hci_power_control(HCI_POWER_ON);
+    if (pwr_err != 0) {
+        log_msg("FATAL: hci_power_control failed, exiting");
+        fprintf(stderr, "[codex_btstack] FATAL: hci_power_control failed (%d), exiting\n", pwr_err);
+        cleanup_cmd_socket();
+        if (g_bthid_fifo_fd >= 0) {
+            close(g_bthid_fifo_fd);
+            g_bthid_fifo_fd = -1;
+        }
+        unlink(BTHID_STATUS_FILE);
+        unlink(PID_FILE);
+        return 1;
+    }
 
     // 13. Run loop
     btstack_run_loop_execute();

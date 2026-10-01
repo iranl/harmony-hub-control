@@ -312,7 +312,7 @@ void http_handle_client(int client_fd) {
         }
 
         if (dry_run) {
-            char preview[1024] = {0};
+            char preview[4096] = {0};
             int rc = orch_switch_activity(act_id, 1, preview, sizeof(preview));
             if (rc == 0) {
                 cJSON *pj = preview[0] ? cJSON_Parse(preview) : NULL;
@@ -363,7 +363,7 @@ void http_handle_client(int client_fd) {
         }
 
         if (dry_run) {
-            char preview[1024] = {0};
+            char preview[4096] = {0};
             int rc = orch_power_off(1, preview, sizeof(preview));
             if (rc == 0) {
                 cJSON *pj = preview[0] ? cJSON_Parse(preview) : NULL;
@@ -462,6 +462,46 @@ void http_handle_client(int client_fd) {
         }
         send_cjson_resp(client_fd, 200, st);
         cJSON_Delete(st);
+        close(client_fd);
+        return;
+    }
+
+    /* Route: /api/rf/* proxy to codex_rf (127.0.0.1:8092) */
+    if (strncmp(path, "/api/rf", 7) == 0) {
+        int rfsock = socket(AF_INET, SOCK_STREAM, 0);
+        if (rfsock >= 0) {
+            struct sockaddr_in sin;
+            memset(&sin, 0, sizeof(sin));
+            sin.sin_family = AF_INET;
+            sin.sin_port = htons(8092);
+            sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+
+            struct timeval tv = { .tv_sec = 2, .tv_usec = 0 };
+            setsockopt(rfsock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+            setsockopt(rfsock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+            if (connect(rfsock, (struct sockaddr *)&sin, sizeof(sin)) == 0) {
+                char proxy_req[512];
+                int prlen = snprintf(proxy_req, sizeof(proxy_req),
+                    "%s %s HTTP/1.1\r\nHost: 127.0.0.1:8092\r\nConnection: close\r\n\r\n",
+                    method, path);
+                write(rfsock, proxy_req, prlen);
+
+                char resp_buf[1024];
+                ssize_t rn;
+                while ((rn = read(rfsock, resp_buf, sizeof(resp_buf))) > 0) {
+                    write(client_fd, resp_buf, rn);
+                }
+                close(rfsock);
+                close(client_fd);
+                return;
+            }
+            close(rfsock);
+        }
+        cJSON *err = cJSON_CreateObject();
+        cJSON_AddStringToObject(err, "error", "codex_rf daemon unavailable on port 8092");
+        send_cjson_resp(client_fd, 502, err);
+        cJSON_Delete(err);
         close(client_fd);
         return;
     }
