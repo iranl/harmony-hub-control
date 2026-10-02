@@ -194,6 +194,8 @@ static void dispatch_elite_button(const char *button_name, const char *action_st
     if (!btn_cfg) {
         cJSON *def_obj = cJSON_GetObjectItemCaseSensitive(acts, "-1");
         if (!def_obj) def_obj = cJSON_GetObjectItemCaseSensitive(acts, "default");
+        if (!def_obj) def_obj = cJSON_GetObjectItemCaseSensitive(acts, "53591842");
+        if (!def_obj && acts->child) def_obj = acts->child;
         if (def_obj && cJSON_IsObject(def_obj)) {
             btn_cfg = cJSON_GetObjectItemCaseSensitive(def_obj, button_name);
         }

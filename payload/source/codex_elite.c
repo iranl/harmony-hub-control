@@ -472,6 +472,45 @@ static uint16_t linux_to_harmony_rf_key(int code) {
     }
 }
 
+static void rf_send_button_event(uint16_t key_code, int value);
+
+static uint16_t g_held_rf_code = 0;
+static pthread_mutex_t g_repeat_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t g_repeat_cond = PTHREAD_COND_INITIALIZER;
+
+static void *key_repeat_thread(void *arg) {
+    (void)arg;
+    while (g_running) {
+        pthread_mutex_lock(&g_repeat_mutex);
+        while (g_held_rf_code == 0 && g_running) {
+            pthread_cond_wait(&g_repeat_cond, &g_repeat_mutex);
+        }
+        if (!g_running) {
+            pthread_mutex_unlock(&g_repeat_mutex);
+            break;
+        }
+        uint16_t key = g_held_rf_code;
+        pthread_mutex_unlock(&g_repeat_mutex);
+
+        /* 300ms initial hold delay */
+        usleep(300000);
+
+        while (g_running) {
+            pthread_mutex_lock(&g_repeat_mutex);
+            if (g_held_rf_code != key) {
+                pthread_mutex_unlock(&g_repeat_mutex);
+                break;
+            }
+            pthread_mutex_unlock(&g_repeat_mutex);
+
+            /* Transmit repeated press event */
+            rf_send_button_event(key, 1);
+            usleep(100000); /* 100ms repeat rate */
+        }
+    }
+    return NULL;
+}
+
 /* Transmit button event over RF to Hub */
 static void rf_send_button_event(uint16_t key_code, int value) {
     if (key_code == 0) return;
@@ -1047,9 +1086,10 @@ int main(int argc, char **argv) {
     printf("[+] Listening on %s for physical buttons...\n", BTN_EVENT_DEV);
 
     /* Background Threads */
-    pthread_t th_power, th_gyro;
+    pthread_t th_power, th_gyro, th_repeat;
     pthread_create(&th_power, NULL, power_manager, NULL);
     pthread_create(&th_gyro, NULL, gyro_watcher, NULL);
+    pthread_create(&th_repeat, NULL, key_repeat_thread, NULL);
 
     /* Initial Render */
     render_screen();
@@ -1082,10 +1122,56 @@ int main(int argc, char **argv) {
             while (read(g_btn_fd, &ev, sizeof(ev)) == sizeof(ev)) {
                 if (ev.type == EV_KEY) {
                     reset_idle_timer();
-                    /* Physical buttons ALWAYS forward directly to Hub over RF */
-                    uint16_t rf_code = linux_to_harmony_rf_key(ev.code);
-                    if (rf_code != 0) {
-                        rf_send_button_event(rf_code, ev.value);
+
+                    /* Mode Toggle: Menu button (139) switches between NAV and DEV */
+                    if (ev.code == 139) {
+                        if (ev.value == 1) {
+                            g_screen_nav_mode = !g_screen_nav_mode;
+                            printf("[*] Mode toggled by Menu button: %s\n", g_screen_nav_mode ? "NAV (Screen)" : "DEV (Device)");
+                            render_screen();
+                        }
+                        continue;
+                    }
+
+                    if (g_screen_nav_mode) {
+                        /* Screen Navigation Mode: D-Pad and OK navigate and select on screen */
+                        handle_navigation_key(ev.code, ev.value);
+
+                        /* Non-nav buttons (Volume, Transport) still send RF */
+                        if (ev.code == 115 || ev.code == 114 || ev.code == 113) {
+                            uint16_t rf_code = linux_to_harmony_rf_key(ev.code);
+                            if (rf_code != 0) {
+                                if (ev.value == 1) {
+                                    rf_send_button_event(rf_code, 1);
+                                    pthread_mutex_lock(&g_repeat_mutex);
+                                    g_held_rf_code = rf_code;
+                                    pthread_cond_signal(&g_repeat_cond);
+                                    pthread_mutex_unlock(&g_repeat_mutex);
+                                } else if (ev.value == 0) {
+                                    pthread_mutex_lock(&g_repeat_mutex);
+                                    if (g_held_rf_code == rf_code) g_held_rf_code = 0;
+                                    pthread_mutex_unlock(&g_repeat_mutex);
+                                    rf_send_button_event(rf_code, 0);
+                                }
+                            }
+                        }
+                    } else {
+                        /* Device Control Mode: Forward directly over RF with auto-repeat */
+                        uint16_t rf_code = linux_to_harmony_rf_key(ev.code);
+                        if (rf_code != 0) {
+                            if (ev.value == 1) {
+                                rf_send_button_event(rf_code, 1);
+                                pthread_mutex_lock(&g_repeat_mutex);
+                                g_held_rf_code = rf_code;
+                                pthread_cond_signal(&g_repeat_cond);
+                                pthread_mutex_unlock(&g_repeat_mutex);
+                            } else if (ev.value == 0) {
+                                pthread_mutex_lock(&g_repeat_mutex);
+                                if (g_held_rf_code == rf_code) g_held_rf_code = 0;
+                                pthread_mutex_unlock(&g_repeat_mutex);
+                                rf_send_button_event(rf_code, 0);
+                            }
+                        }
                     }
                 }
             }
@@ -1097,8 +1183,8 @@ int main(int argc, char **argv) {
             while (read(g_touch_fd, &ev, sizeof(ev)) == sizeof(ev)) {
                 if (ev.type == EV_KEY) {
                     /* Capacitive buttons below screen: 102=Home/Activities, 364=Favorites/Devices */
-                    printf("[*] event2 EV_KEY: code=%d, val=%d\n", ev.code, ev.value);
                     if (ev.code == 102 || ev.code == 364) {
+                        reset_idle_timer();
                         handle_navigation_key(ev.code, ev.value);
                     } else if (ev.code == 330) { /* BTN_TOUCH */
                         if (ev.value == 0) {
@@ -1107,6 +1193,7 @@ int main(int argc, char **argv) {
                                 g_touch_is_down = false;
                             }
                         } else {
+                            reset_idle_timer();
                             g_touch_is_down = true;
                         }
                     }
@@ -1117,6 +1204,7 @@ int main(int argc, char **argv) {
                         g_touch_cur_y = ev.value;
                     } else if (ev.code == ABS_PRESSURE) {
                         if (ev.value > 0) {
+                            reset_idle_timer();
                             g_touch_is_down = true;
                         } else if (ev.value == 0 && g_touch_is_down) {
                             handle_screen_touch_tap(g_touch_cur_x, g_touch_cur_y);
