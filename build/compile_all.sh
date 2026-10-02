@@ -84,12 +84,12 @@ build_sync() {
 
 build_rf() {
     echo "[-] Building codex_rf..."
-    "$CC" $CFLAGS -lpthread -o "$BIN/codex_rf" payload/source/codex_rf.c
+    "$CC" $CFLAGS -Ipayload/source -lpthread -lm -o "$BIN/codex_rf" payload/source/codex_rf.c payload/source/cJSON.c
 }
 
 build_elite() {
     echo "[-] Building codex_elite (ARM)..."
-    arm-linux-gnueabi-gcc -static -Os -s -Wall -Ipayload/source payload/source/codex_elite.c -o "$BIN/codex_elite" -lpthread
+    arm-linux-gnueabi-gcc -static -Os -s -Wall -Ipayload/source payload/source/codex_elite.c payload/source/cJSON.c -o "$BIN/codex_elite" -lpthread -lm
 }
 
 case "$TARGET" in

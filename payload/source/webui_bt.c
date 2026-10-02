@@ -1324,6 +1324,85 @@ void render_remote_mapping_save_json(int fd, const struct request *req) {
     cJSON_Delete(resp);
 }
 
+#define ELITE_REMOTE_MAP_FILE "/data/codex/elite_remote_map.json"
+
+void render_elite_mapping_json(int fd) {
+    cJSON *map_obj = NULL;
+    char *raw = read_file_alloc(ELITE_REMOTE_MAP_FILE, 1048576, NULL);
+    if (raw) {
+        map_obj = cJSON_Parse(raw);
+        free(raw);
+    }
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", 1);
+    if (map_obj) {
+        cJSON_AddItemToObject(resp, "mapping", map_obj);
+    } else {
+        cJSON *def_map = cJSON_CreateObject();
+        cJSON *def_rem = cJSON_CreateObject();
+        cJSON_AddStringToObject(def_rem, "name", "Harmony Elite");
+        cJSON_AddItemToObject(def_map, "remote", def_rem);
+        cJSON_AddObjectToObject(def_map, "activities");
+        cJSON_AddItemToObject(resp, "mapping", def_map);
+    }
+    send_cjson_resp(fd, "200 OK", resp);
+    cJSON_Delete(resp);
+}
+
+void render_elite_mapping_save_json(int fd, const struct request *req) {
+    const char *payload = NULL;
+    char *alloc_buf = NULL;
+    if (req->body && req->body[0] == '{') {
+        payload = req->body;
+    } else if (req->body) {
+        alloc_buf = (char *)malloc(MAX_REQUEST_BODY);
+        if (alloc_buf) {
+            form_value(req->body, "json", alloc_buf, MAX_REQUEST_BODY);
+            if (alloc_buf[0] == '{') payload = alloc_buf;
+        }
+    }
+    cJSON *parsed = payload ? cJSON_Parse(payload) : NULL;
+    if (!parsed) {
+        if (alloc_buf) free(alloc_buf);
+        cJSON *err = cJSON_CreateObject();
+        cJSON_AddBoolToObject(err, "ok", 0);
+        cJSON_AddStringToObject(err, "error", "Invalid JSON payload");
+        send_cjson_resp(fd, "400 Bad Request", err);
+        cJSON_Delete(err);
+        return;
+    }
+    char *out = cJSON_Print(parsed);
+    cJSON_Delete(parsed);
+    if (alloc_buf) free(alloc_buf);
+    if (!out) {
+        cJSON *err = cJSON_CreateObject();
+        cJSON_AddBoolToObject(err, "ok", 0);
+        cJSON_AddStringToObject(err, "error", "Failed to format mappings");
+        send_cjson_resp(fd, "500 Internal Server Error", err);
+        cJSON_Delete(err);
+        return;
+    }
+    FILE *mf = fopen(ELITE_REMOTE_MAP_FILE, "w");
+    if (!mf) {
+        free(out);
+        cJSON *err = cJSON_CreateObject();
+        cJSON_AddBoolToObject(err, "ok", 0);
+        cJSON_AddStringToObject(err, "error", "Failed to open mappings file for writing");
+        send_cjson_resp(fd, "500 Internal Server Error", err);
+        cJSON_Delete(err);
+        return;
+    }
+    fputs(out, mf);
+    fputc('\n', mf);
+    fclose(mf);
+    free(out);
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", 1);
+    cJSON_AddStringToObject(resp, "message", "Harmony Elite mappings saved successfully");
+    send_cjson_resp(fd, "200 OK", resp);
+    cJSON_Delete(resp);
+}
+
 void render_remote_scan_json(int fd, const struct request *req) {
     if (!is_btstack_running()) {
         cJSON *err = cJSON_CreateObject();

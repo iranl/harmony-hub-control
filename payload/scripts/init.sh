@@ -102,6 +102,10 @@ rm -f /data/codex/bin/codex_bthid_remote /data/codex/bin/codex_bthid_keyboard 2>
         /data/codex/bin/codex_btstack >> "$LOG" 2>&1
       fi
     fi
+    sleep 5
+  done
+) &
+
 # 8. CC2544 RF Daemon (Logitech HAL replacement for Elite Remote RF)
 (
   while true; do

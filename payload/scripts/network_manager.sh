@@ -44,6 +44,15 @@ load_config() {
   fi
 }
 
+configure_arp_isolation() {
+  # Prevent ARP flux and broadcast loops when both eth and wifi are on same subnet
+  echo 1 > /proc/sys/net/ipv4/conf/all/arp_ignore 2>/dev/null || true
+  echo 1 > /proc/sys/net/ipv4/conf/default/arp_ignore 2>/dev/null || true
+  echo 2 > /proc/sys/net/ipv4/conf/all/arp_announce 2>/dev/null || true
+  echo 2 > /proc/sys/net/ipv4/conf/default/arp_announce 2>/dev/null || true
+  echo 2 > /proc/sys/net/ipv4/conf/all/rp_filter 2>/dev/null || true
+  echo 2 > /proc/sys/net/ipv4/conf/default/rp_filter 2>/dev/null || true
+}
 
 find_eth_interface() {
   # Ethernet on Harmony Hub is strictly USB-based.
@@ -119,6 +128,7 @@ start_eth() {
   fi
 
   log "Found USB Ethernet interface: $eth_if"
+  configure_arp_isolation
   ifconfig "$eth_if" up >> "$LOG" 2>&1
 
   # Check link/carrier (up to 5s)
@@ -157,6 +167,7 @@ start_eth() {
 
   eth_ip=$(ifconfig "$eth_if" 2>/dev/null | grep 'inet addr' | awk -F: '{print $2}' | awk '{print $1}')
   if [ -n "$eth_ip" ]; then
+    configure_arp_isolation
     log "Ethernet connected successfully: $eth_if has IP $eth_ip"
     echo "$eth_if:ethernet:$eth_ip" > "$STATE_FILE"
     # Ensure default route prioritizes Ethernet over ath0

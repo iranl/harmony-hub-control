@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <linux/input.h>
 #include <linux/fb.h>
+#include "cJSON.h"
 
 #define FB_DEV              "/dev/fb0"
 #define FB_BLANK_SYSFS      "/sys/class/graphics/fb0/blank"
@@ -23,6 +24,8 @@
 #define BTN_EVENT_DEV       "/dev/input/event0"
 #define GYRO_EVENT_DEV      "/dev/input/event1"
 #define TOUCH_EVENT_DEV     "/dev/input/event2"
+#define GYRO_DATA_RATE_SYS  "/sys/devices/platform/i2c_davinci.1/i2c-1/1-0019/data_rate"
+#define GYRO_XYZ_SYS        "/sys/devices/platform/i2c_davinci.1/i2c-1/1-0019/xyz"
 #define RFSPI_DEV           "/dev/rfspi"
 #define ACTIVITY_JSON_FILE  "/data/resources/ActivityList.json"
 
@@ -70,16 +73,17 @@ static char g_active_activity_name[48] = "PowerOff";
 typedef struct {
     char name[32];
     char command[32];
+    uint16_t rf_code;
 } device_item_t;
 
 static const device_item_t g_device_commands[] = {
-    {"TV", "PowerToggle"},
-    {"TV", "InputHdmi1"},
-    {"TV", "InputHdmi2"},
-    {"Receiver", "PowerToggle"},
-    {"Receiver", "Mute"},
-    {"Shield", "Home"},
-    {"Shield", "Back"}
+    {"TV", "PowerToggle", 0x01EC},
+    {"TV", "InputHdmi1", 0x0101},
+    {"TV", "InputHdmi2", 0x0102},
+    {"Receiver", "PowerToggle", 0x0103},
+    {"Receiver", "Mute", 0x00E2},
+    {"Shield", "Home", 0x0065},
+    {"Shield", "Back", 0x0225}
 };
 #define DEVICE_CMD_COUNT ((int)(sizeof(g_device_commands) / sizeof(g_device_commands[0])))
 static int g_selected_device_cmd = 0;
@@ -100,6 +104,7 @@ static bool g_gyro_enabled = true;
 static int g_timeout_seconds = 120;
 static int g_brightness_val = 3; /* 1..5 */
 static bool g_screen_on = true;
+static bool g_screen_nav_mode = false; /* When false: D-PAD controls device; when true: D-PAD navigates UI */
 
 /* State */
 static volatile bool g_running = true;
@@ -113,6 +118,11 @@ static int g_rf_fd = -1;
 static ui_view_t g_current_view = VIEW_ACTIVITIES;
 static time_t g_last_activity_time = 0;
 static pthread_mutex_t g_render_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+/* Touch tracking */
+static int g_touch_cur_x = 0;
+static int g_touch_cur_y = 0;
+static bool g_touch_is_down = false;
 
 /* Full 8x8 ASCII Font (Characters 32 to 126) */
 static const uint8_t g_font_8x8[95][8] = {
@@ -245,23 +255,20 @@ static void fb_set_blank(bool blank) {
     } else {
         set_backlight_level(0);
     }
+    int lfd = open(BTN_LED_SYSFS, O_WRONLY);
+    if (lfd >= 0) {
+        write(lfd, blank ? "0\n" : "100\n", blank ? 2 : 4);
+        close(lfd);
+    }
 }
 
-/* Touchscreen Enable / Disable (via EVIOCGRAB) */
+/* Touchscreen Enable / Disable */
 static void set_touch_enabled(bool enable) {
-    if (g_touch_fd >= 0) {
-        int grab = enable ? 0 : 1;
-        ioctl(g_touch_fd, EVIOCGRAB, grab);
-    }
     g_touch_enabled = enable;
 }
 
-/* Gyro / Accelerometer Enable / Disable (via EVIOCGRAB) */
+/* Gyro / Accelerometer Enable / Disable */
 static void set_gyro_enabled(bool enable) {
-    if (g_gyro_fd >= 0) {
-        int grab = enable ? 0 : 1;
-        ioctl(g_gyro_fd, EVIOCGRAB, grab);
-    }
     g_gyro_enabled = enable;
 }
 
@@ -290,7 +297,7 @@ static void save_settings_conf(void) {
     fprintf(f, "gyro=%d\n", g_gyro_enabled ? 1 : 0);
     fprintf(f, "timeout=%d\n", g_timeout_seconds);
     fprintf(f, "brightness=%d\n", g_brightness_val);
-    fprintf(f, "screen=%d\n", g_screen_on ? 1 : 0);
+    fprintf(f, "screen=1\n");
     fclose(f);
 }
 
@@ -335,88 +342,189 @@ static void fb_draw_text(int x, int y, const char *text, uint16_t fg, uint16_t b
 static void load_activities(void) {
     g_activity_count = 0;
     FILE *f = fopen(ACTIVITY_JSON_FILE, "r");
-    if (!f) {
-        /* Fallback defaults */
-        strcpy(g_activities[0].id, "53591842");
-        strcpy(g_activities[0].name, "SHIELDTV");
-        strcpy(g_activities[1].id, "53591844");
-        strcpy(g_activities[1].name, "Playstation 5");
-        strcpy(g_activities[2].id, "53591849");
-        strcpy(g_activities[2].name, "Switch");
-        strcpy(g_activities[3].id, "-1");
-        strcpy(g_activities[3].name, "Power Off");
-        g_activity_count = 4;
-        return;
-    }
+    if (!f) goto add_defaults;
 
     fseek(f, 0, SEEK_END);
     long sz = ftell(f);
     fseek(f, 0, SEEK_SET);
+    if (sz <= 0) { fclose(f); goto add_defaults; }
 
     char *buf = malloc(sz + 1);
-    if (!buf) { fclose(f); return; }
-    fread(buf, 1, sz, f);
-    buf[sz] = '\0';
+    if (!buf) { fclose(f); goto add_defaults; }
+    size_t rd = fread(buf, 1, sz, f);
+    buf[rd] = '\0';
     fclose(f);
 
-    /* Lightweight string search for Name and Id- */
-    char *ptr = buf;
-    while (g_activity_count < MAX_ACTIVITIES - 1) {
-        char *name_tag = strstr(ptr, "\"Name\":\"");
-        if (!name_tag) break;
-        name_tag += 8;
-        char *name_end = strchr(name_tag, '\"');
-        if (!name_end) break;
-
-        char *id_tag = strstr(name_end, "\"Id-\":");
-        if (!id_tag) break;
-        id_tag += 6;
-
-        int len = name_end - name_tag;
-        if (len > 40) len = 40;
-        strncpy(g_activities[g_activity_count].name, name_tag, len);
-        g_activities[g_activity_count].name[len] = '\0';
-
-        char id_buf[32] = {0};
-        sscanf(id_tag, "%31[0-9-]", id_buf);
-        strncpy(g_activities[g_activity_count].id, id_buf, sizeof(g_activities[g_activity_count].id) - 1);
-
-        g_activity_count++;
-        ptr = id_tag + 1;
-    }
+    cJSON *root = cJSON_Parse(buf);
     free(buf);
+    if (!root) goto add_defaults;
+
+    cJSON *acts = cJSON_GetObjectItem(root, "Activities");
+    if (acts && cJSON_IsArray(acts)) {
+        cJSON *item = NULL;
+        cJSON_ArrayForEach(item, acts) {
+            if (g_activity_count >= MAX_ACTIVITIES - 1) break;
+            cJSON *j_name = cJSON_GetObjectItem(item, "Name");
+            cJSON *j_id = cJSON_GetObjectItem(item, "Id-");
+            if (!j_id) j_id = cJSON_GetObjectItem(item, "id");
+
+            if (j_name && cJSON_IsString(j_name) && j_id) {
+                const char *n = j_name->valuestring;
+                char id_str[32] = {0};
+                if (cJSON_IsNumber(j_id)) snprintf(id_str, sizeof(id_str), "%d", j_id->valueint);
+                else if (cJSON_IsString(j_id)) strncpy(id_str, j_id->valuestring, sizeof(id_str) - 1);
+
+                /* Replace non-breaking space \xA0 or \xC2\xA0 with standard space */
+                char clean_name[48] = {0};
+                int ci = 0;
+                for (int i = 0; n[i] && ci < 47; i++) {
+                    if ((unsigned char)n[i] == 0xA0) {
+                        clean_name[ci++] = ' ';
+                    } else if ((unsigned char)n[i] == 0xC2 && (unsigned char)n[i+1] == 0xA0) {
+                        clean_name[ci++] = ' ';
+                        i++;
+                    } else {
+                        clean_name[ci++] = n[i];
+                    }
+                }
+
+                strncpy(g_activities[g_activity_count].name, clean_name, sizeof(g_activities[0].name) - 1);
+                strncpy(g_activities[g_activity_count].id, id_str, sizeof(g_activities[0].id) - 1);
+                g_activity_count++;
+            }
+        }
+    }
+    cJSON_Delete(root);
+
+    if (g_activity_count == 0) {
+add_defaults:
+        strcpy(g_activities[0].id, "46786510");
+        strcpy(g_activities[0].name, "SHIELD TV");
+        strcpy(g_activities[1].id, "51843231");
+        strcpy(g_activities[1].name, "Playstation 5");
+        g_activity_count = 2;
+    }
 
     /* Always ensure Power Off option exists at end */
-    strcpy(g_activities[g_activity_count].id, "-1");
-    strcpy(g_activities[g_activity_count].name, "Power Off");
-    g_activity_count++;
+    bool has_power_off = false;
+    for (int i = 0; i < g_activity_count; i++) {
+        if (strcmp(g_activities[i].id, "-1") == 0) { has_power_off = true; break; }
+    }
+    if (!has_power_off && g_activity_count < MAX_ACTIVITIES) {
+        strcpy(g_activities[g_activity_count].id, "-1");
+        strcpy(g_activities[g_activity_count].name, "Power Off");
+        g_activity_count++;
+    }
+}
+
+/* Map Linux event0 keycode to Logitech Harmony RF key code */
+static uint16_t linux_to_harmony_rf_key(int code) {
+    switch (code) {
+        /* Activities & Power */
+        case 116: return 0x01EC; /* KEY_POWER -> PowerOffActivity */
+
+        /* Navigation */
+        case 103: return 0x0052; /* KEY_UP -> DirectionUp */
+        case 108: return 0x0051; /* KEY_DOWN -> DirectionDown */
+        case 105: return 0x0050; /* KEY_LEFT -> DirectionLeft */
+        case 106: return 0x004F; /* KEY_RIGHT -> DirectionRight */
+        case 352: /* KEY_OK */
+        case 28:  return 0x0058; /* KEY_ENTER -> Select */
+        case 174: /* KEY_EXIT */
+        case 158: return 0x0225; /* KEY_BACK -> Back */
+        case 139: /* KEY_MENU */
+        case 127: return 0x0065; /* KEY_COMPOSE -> Menu */
+        case 159: return 0x0094; /* KEY_FORWARD -> Exit */
+        case 358: return 0x01FF; /* KEY_INFO -> Info */
+        case 395: return 0x009A; /* KEY_LIST -> Dvr */
+
+        /* Volume & Channel */
+        case 115: return 0x00E9; /* KEY_VOLUMEUP -> VolumeUp */
+        case 114: return 0x00EA; /* KEY_VOLUMEDOWN -> VolumeDown */
+        case 113: return 0x00E2; /* KEY_MUTE -> VolumeMute */
+        case 402: return 0x009C; /* KEY_CHANNELUP -> ChannelUp */
+        case 403: return 0x009D; /* KEY_CHANNELDOWN -> ChannelDown */
+        case 412: return 0x0224; /* KEY_PREVIOUS -> PrevChannel */
+
+        /* Transport / Playback */
+        case 207: return 0x00B0; /* KEY_PLAY -> Play */
+        case 119: return 0x00B1; /* KEY_PAUSE -> Pause */
+        case 167: return 0x00B2; /* KEY_RECORD -> Record */
+        case 389: return 0x00B3; /* KEY_FASTFORWARD -> FastForward */
+        case 168: return 0x00B4; /* KEY_REWIND -> Rewind */
+        case 128: return 0x00B7; /* KEY_STOP -> Stop */
+
+        /* Color Buttons */
+        case 398: return 0x01F7; /* KEY_RED -> Red */
+        case 399: return 0x01F6; /* KEY_GREEN -> Green */
+        case 400: return 0x01F5; /* KEY_YELLOW -> Yellow */
+        case 401: return 0x01F4; /* KEY_BLUE -> Blue */
+
+        /* Home Automation */
+        case 148: return 0x0FF2; /* KEY_PROG1 -> Ha1 (Light) */
+        case 149: return 0x0FF3; /* KEY_PROG2 -> Ha2 (Sun/Brightness) */
+        case 202: return 0x0FF4; /* KEY_PROG3 -> Ha3 (Power/Plug) */
+        case 203: return 0x0FF5; /* KEY_PROG4 -> Ha4 (Socket) */
+        case 78:  return 0x0FF0; /* KEY_KPPLUS -> RockerUp */
+        case 74:  return 0x0FF1; /* KEY_KPMINUS -> RockerDown */
+
+        default:  return 0;
+    }
 }
 
 /* Transmit button event over RF to Hub */
 static void rf_send_button_event(uint16_t key_code, int value) {
-    if (g_rf_fd < 0) return;
-    uint8_t pkt[7];
-    pkt[0] = 0x10;
-    pkt[1] = 0xFF;
-    pkt[2] = 0x41;
-    pkt[3] = (uint8_t)(key_code >> 8);
-    pkt[4] = (uint8_t)(key_code & 0xFF);
-    pkt[5] = (value == 1) ? 0x01 : ((value == 2) ? 0x02 : 0x00);
-    pkt[6] = 0x00;
-    write(g_rf_fd, pkt, sizeof(pkt));
+    if (key_code == 0) return;
+    /* value: 1 = press, 2 = repeat, 0 = release */
+    if (value < 0 || value > 2) return;
+
+    if (g_rf_fd >= 0) {
+        printf("[*] RF Send Button: 0x%04X (val=%d)\n", key_code, value);
+
+        /* Single Report 0x20 (32 bytes) with dev_idx=0x01, sub_id=0x01 */
+        uint8_t pkt20[32] = {0};
+        pkt20[0] = 0x20;
+        pkt20[1] = 0x01;
+        pkt20[2] = 0x01;
+        pkt20[3] = (uint8_t)(key_code >> 8);
+        pkt20[4] = (uint8_t)(key_code & 0xFF);
+        pkt20[5] = (value == 0) ? 0x00 : 0x01;
+        write(g_rf_fd, pkt20, sizeof(pkt20));
+    }
 }
 
 /* Transmit Activity Switch command over RF */
 static void rf_send_activity_start(const char *act_id) {
-    if (g_rf_fd < 0) return;
-    /* Format: HID++ Long Report 0x11, DevIdx=0xFF, SubID=0xFD (HOT), Cmd=0x01, ActID */
-    uint8_t pkt[20] = {0};
-    pkt[0] = 0x11;
-    pkt[1] = 0xFF;
-    pkt[2] = 0xFD;
-    pkt[3] = 0x01; /* Command: Start Activity */
-    strncpy((char *)&pkt[4], act_id, 15);
-    write(g_rf_fd, pkt, sizeof(pkt));
+    if (g_rf_fd >= 0) {
+        printf("[*] RF Send Activity: %s\n", act_id);
+
+        if (strcmp(act_id, "-1") == 0) {
+            rf_send_button_event(0x01EC, 1);
+            usleep(50000);
+            rf_send_button_event(0x01EC, 0);
+        } else {
+            uint8_t pkt20[32] = {0};
+            pkt20[0] = 0x20;
+            pkt20[1] = 0x01;
+            pkt20[2] = 0xFD;
+            pkt20[3] = 0x01;
+            snprintf((char *)&pkt20[4], 27, "%s", act_id);
+            write(g_rf_fd, pkt20, sizeof(pkt20));
+
+            uint8_t pkt11[20] = {0};
+            pkt11[0] = 0x11;
+            pkt11[1] = 0x01;
+            pkt11[2] = 0xFD;
+            pkt11[3] = 0x01;
+            snprintf((char *)&pkt11[4], 15, "%s", act_id);
+            write(g_rf_fd, pkt11, sizeof(pkt11));
+
+            /* Also send Select on activity */
+            rf_send_button_event(0x0058, 1);
+            usleep(50000);
+            rf_send_button_event(0x0058, 0);
+        }
+    }
 }
 
 /* Render Header Tab Bar */
@@ -440,8 +548,11 @@ static void render_header(void) {
 static void render_footer(void) {
     fb_fill_rect(0, FB_HEIGHT - 24, FB_WIDTH, 24, RGB_HEADER);
     char buf[48];
-    snprintf(buf, sizeof(buf), "CURRENT: %s", g_active_activity_name);
-    fb_draw_text(10, FB_HEIGHT - 17, buf, RGB_GREEN, RGB_HEADER, 1);
+    snprintf(buf, sizeof(buf), "%s [%s]", g_active_activity_name, g_screen_nav_mode ? "NAV" : "DEV");
+    fb_draw_text(8, FB_HEIGHT - 17, buf, g_screen_nav_mode ? RGB_CYAN : RGB_GREEN, RGB_HEADER, 1);
+
+    const char *mode_hint = g_screen_nav_mode ? "Menu:Exit" : "Menu:Nav";
+    fb_draw_text(FB_WIDTH - 76, FB_HEIGHT - 17, mode_hint, RGB_TEXT_MUTED, RGB_HEADER, 1);
 }
 
 /* Render Activity List View */
@@ -570,21 +681,50 @@ static void reset_idle_timer(void) {
     }
 }
 
-/* Motion / Gyro Watcher Thread */
+/* Motion / Gyro Watcher Thread (polls sysfs xyz delta) */
 static void *gyro_watcher(void *arg) {
     (void)arg;
-    struct input_event ev;
+    int last_x = 0, last_y = 0, last_z = 0;
+    bool has_baseline = false;
+
+    /* Initialize accelerometer sampling */
+    int fdr = open(GYRO_DATA_RATE_SYS, O_WRONLY);
+    if (fdr >= 0) {
+        write(fdr, "25\n", 3);
+        close(fdr);
+    }
+
     while (g_running) {
-        if (g_gyro_fd < 0 || !g_gyro_enabled) {
-            sleep(1);
-            continue;
-        }
-        ssize_t n = read(g_gyro_fd, &ev, sizeof(ev));
-        if (n == sizeof(ev)) {
-            if (ev.type == EV_ABS) {
-                /* Motion detected, wake screen if sleeping */
+        usleep(200000); /* 200ms */
+        if (!g_gyro_enabled) continue;
+
+        int fd = open(GYRO_XYZ_SYS, O_RDONLY);
+        if (fd < 0) continue;
+
+        char buf[64];
+        ssize_t n = read(fd, buf, sizeof(buf) - 1);
+        close(fd);
+
+        if (n > 0) {
+            buf[n] = '\0';
+            int x = 0, y = 0, z = 0;
+            if (sscanf(buf, "%d %d %d", &x, &y, &z) == 3) {
+                if (!has_baseline) {
+                    last_x = x; last_y = y; last_z = z;
+                    has_baseline = true;
+                    continue;
+                }
+                int dx = abs(x - last_x);
+                int dy = abs(y - last_y);
+                int dz = abs(z - last_z);
+                last_x = x; last_y = y; last_z = z;
+
+                /* Only wake screen if currently blanked/off (pick up to wake gesture) */
                 if (!g_screen_on) {
-                    reset_idle_timer();
+                    if (dx > 200 || dy > 200 || dz > 200) {
+                        printf("[*] Gyro wake gesture detected (dx=%d, dy=%d, dz=%d)\n", dx, dy, dz);
+                        reset_idle_timer();
+                    }
                 }
             }
         }
@@ -608,23 +748,140 @@ static void *power_manager(void *arg) {
     return NULL;
 }
 
+/* Handle Touchscreen tap at coordinates (x, y) */
+static void handle_screen_touch_tap(int x, int y) {
+    if (!g_touch_enabled) return;
+    reset_idle_timer();
+    printf("[*] Touch tap: screen x=%d, y=%d\n", x, y);
+
+    /* Header Tab Area: y < 34 */
+    if (y < 34) {
+        if (x < 80) g_current_view = VIEW_ACTIVITIES;
+        else if (x < 160) g_current_view = VIEW_DEVICES;
+        else g_current_view = VIEW_SETTINGS;
+        g_screen_nav_mode = true;
+        render_screen();
+        return;
+    }
+
+    /* Capacitive touch buttons below LCD screen: y >= 235 */
+    if (y >= 235) {
+        if (x < 120) {
+            printf("[*] Capacitive tap: Activities (x=%d, y=%d)\n", x, y);
+            g_current_view = VIEW_ACTIVITIES;
+        } else {
+            printf("[*] Capacitive tap: Devices (x=%d, y=%d)\n", x, y);
+            g_current_view = VIEW_DEVICES;
+        }
+        g_screen_nav_mode = true;
+        render_screen();
+        return;
+    }
+
+    /* Content Area */
+    int start_y = 36;
+    if (g_current_view == VIEW_ACTIVITIES) {
+        int card_h = 38;
+        int spacing = 6;
+        for (int i = 0; i < g_activity_count && i < 6; i++) {
+            int cy = start_y + i * (card_h + spacing);
+            if (y >= cy && y < cy + card_h + spacing) {
+                g_selected_activity = i;
+                activity_item_t *sel = &g_activities[i];
+                strncpy(g_active_activity_id, sel->id, sizeof(g_active_activity_id) - 1);
+                strncpy(g_active_activity_name, sel->name, sizeof(g_active_activity_name) - 1);
+                printf("[*] Touch started Activity: %s (id=%s)\n", sel->name, sel->id);
+                rf_send_activity_start(sel->id);
+                g_screen_nav_mode = false; /* Switch back to device control */
+                render_screen();
+                return;
+            }
+        }
+    } else if (g_current_view == VIEW_DEVICES) {
+        int card_h = 34;
+        int spacing = 5;
+        for (int i = 0; i < DEVICE_CMD_COUNT && i < 7; i++) {
+            int cy = start_y + i * (card_h + spacing);
+            if (y >= cy && y < cy + card_h + spacing) {
+                g_selected_device_cmd = i;
+                const device_item_t *d = &g_device_commands[i];
+                printf("[*] Touch triggered Device Command: %s -> %s (0x%04X)\n", d->name, d->command, d->rf_code);
+                rf_send_button_event(d->rf_code, 1);
+                usleep(40000);
+                rf_send_button_event(d->rf_code, 0);
+                render_screen();
+                return;
+            }
+        }
+    } else if (g_current_view == VIEW_SETTINGS) {
+        int card_h = 42;
+        int spacing = 6;
+        for (int i = 0; i < SETTING_COUNT; i++) {
+            int cy = start_y + i * (card_h + spacing);
+            if (y >= cy && y < cy + card_h) {
+                g_selected_setting = i;
+                switch (i) {
+                    case SETTING_TOUCH:
+                        set_touch_enabled(!g_touch_enabled);
+                        break;
+                    case SETTING_GYRO:
+                        set_gyro_enabled(!g_gyro_enabled);
+                        break;
+                    case SETTING_TIMEOUT:
+                        g_timeout_seconds = (g_timeout_seconds == 30) ? 60 : ((g_timeout_seconds == 60) ? 120 : 30);
+                        break;
+                    case SETTING_BRIGHTNESS:
+                        g_brightness_val = (g_brightness_val % 5) + 1;
+                        set_backlight_level(g_brightness_val);
+                        break;
+                    case SETTING_BLANK:
+                        fb_set_blank(true);
+                        break;
+                    default: break;
+                }
+                save_settings_conf();
+                render_screen();
+                return;
+            }
+        }
+    }
+}
+
 /* Navigation & Button Handling */
 static void handle_navigation_key(int code, int value) {
     if (value != 1 && value != 2) return; /* Only on press/repeat */
     reset_idle_timer();
 
-    /* View Switching via Ha1 / Ha2 / Ha3 buttons */
-    if (code == 402) { /* ChannelUp -> Next Tab */
-        g_current_view = (g_current_view + 1) % VIEW_COUNT;
+    /* Capacitive touch buttons below screen reported on event2 */
+    if (code == 102) { /* KEY_HOME: "Activities" touch button */
+        printf("[*] Capacitive key pressed: Activities (code=102, val=%d)\n", value);
+        g_current_view = VIEW_ACTIVITIES;
+        g_screen_nav_mode = true;
         render_screen();
         return;
     }
-    if (code == 403) { /* ChannelDown -> Prev Tab */
-        g_current_view = (g_current_view + VIEW_COUNT - 1) % VIEW_COUNT;
+    if (code == 364) { /* KEY_FAVORITES: "Devices" touch button */
+        printf("[*] Capacitive key pressed: Devices (code=364, val=%d)\n", value);
+        g_current_view = VIEW_DEVICES;
+        g_screen_nav_mode = true;
         render_screen();
         return;
     }
 
+    /* Menu button (code 139) or Info (code 358) toggles screen navigation mode */
+    if (code == 139 || code == 358) {
+        g_screen_nav_mode = !g_screen_nav_mode;
+        printf("[*] Mode toggled by Menu button: %s\n", g_screen_nav_mode ? "NAV (Screen)" : "DEV (Device)");
+        render_screen();
+        return;
+    }
+
+    /* If not in screen navigation mode, D-PAD, OK, Back, Menu pass directly to device over RF */
+    if (!g_screen_nav_mode) {
+        return;
+    }
+
+    /* In Screen Navigation Mode: D-PAD navigates on-screen cards */
     switch (code) {
         case 103: /* KEY_UP (DirectionUp) */
             if (g_current_view == VIEW_ACTIVITIES) {
@@ -666,12 +923,12 @@ static void handle_navigation_key(int code, int value) {
                 strncpy(g_active_activity_name, sel->name, sizeof(g_active_activity_name) - 1);
                 printf("[*] Starting Activity: %s (id=%s)\n", sel->name, sel->id);
                 rf_send_activity_start(sel->id);
+                g_screen_nav_mode = false; /* Switch back to device control */
                 render_screen();
             } else if (g_current_view == VIEW_DEVICES) {
                 const device_item_t *d = &g_device_commands[g_selected_device_cmd];
                 printf("[*] Triggering Device Command: %s -> %s\n", d->name, d->command);
-                /* Send via RF generic button code */
-                rf_send_button_event(0x0205, 1);
+                rf_send_button_event(0x0058, 1);
             } else if (g_current_view == VIEW_SETTINGS) {
                 switch (g_selected_setting) {
                     case SETTING_TOUCH:
@@ -698,10 +955,8 @@ static void handle_navigation_key(int code, int value) {
             break;
 
         case 158: /* KEY_BACK */
-            if (g_current_view != VIEW_ACTIVITIES) {
-                g_current_view = VIEW_ACTIVITIES;
-                render_screen();
-            }
+            g_screen_nav_mode = false;
+            render_screen();
             break;
 
         default:
@@ -756,12 +1011,17 @@ int main(int argc, char **argv) {
     reset_idle_timer();
 
     /* 2. Open Touch and Gyro nodes */
-    g_touch_fd = open(TOUCH_EVENT_DEV, O_RDONLY);
+    g_touch_fd = open(TOUCH_EVENT_DEV, O_RDONLY | O_NONBLOCK);
+    if (g_touch_fd < 0) {
+        perror("[-] Failed to open " TOUCH_EVENT_DEV);
+    } else {
+        printf("[+] Opened %s (fd=%d) for touchscreen and capacitive keys\n", TOUCH_EVENT_DEV, g_touch_fd);
+    }
     if (g_touch_fd >= 0 && !g_touch_enabled) {
         set_touch_enabled(false);
     }
 
-    g_gyro_fd = open(GYRO_EVENT_DEV, O_RDONLY);
+    g_gyro_fd = open(GYRO_EVENT_DEV, O_RDONLY | O_NONBLOCK);
     if (g_gyro_fd >= 0 && !g_gyro_enabled) {
         set_gyro_enabled(false);
     }
@@ -770,10 +1030,16 @@ int main(int argc, char **argv) {
     g_rf_fd = open(RFSPI_DEV, O_RDWR);
     if (g_rf_fd >= 0) {
         printf("[+] Opened %s for RF TX\n", RFSPI_DEV);
+        uint8_t pkt_init[7] = {0x10, 0xFF, 0x80, 0x00, 0x00, 0x01, 0x00};
+        write(g_rf_fd, pkt_init, sizeof(pkt_init));
+        usleep(30000);
+        uint8_t close_pkt[7] = {0x10, 0xFF, 0x80, 0xB2, 0x02, 0x00, 0x00};
+        write(g_rf_fd, close_pkt, sizeof(close_pkt));
+        usleep(30000);
     }
 
     /* 4. Open Physical Buttons */
-    g_btn_fd = open(BTN_EVENT_DEV, O_RDONLY);
+    g_btn_fd = open(BTN_EVENT_DEV, O_RDONLY | O_NONBLOCK);
     if (g_btn_fd < 0) {
         perror("open " BTN_EVENT_DEV);
         return 1;
@@ -788,21 +1054,77 @@ int main(int argc, char **argv) {
     /* Initial Render */
     render_screen();
 
-    /* Event Loop */
-    struct input_event ev;
+    /* Event Loop with select() multiplexing buttons and touchscreen */
     while (g_running) {
-        ssize_t n = read(g_btn_fd, &ev, sizeof(ev));
-        if (n == (ssize_t)sizeof(ev)) {
-            if (ev.type == EV_KEY) {
-                /* Navigation vs RF passthrough */
-                handle_navigation_key(ev.code, ev.value);
+        fd_set rfds;
+        FD_ZERO(&rfds);
+        int max_fd = -1;
 
-                /* Also send RF button event to Hub for standard playback/volume */
-                rf_send_button_event(ev.code, ev.value);
-            }
-        } else if (n < 0 && errno != EINTR) {
-            perror("read btn_fd");
+        if (g_btn_fd >= 0) {
+            FD_SET(g_btn_fd, &rfds);
+            if (g_btn_fd > max_fd) max_fd = g_btn_fd;
+        }
+        if (g_touch_fd >= 0) {
+            FD_SET(g_touch_fd, &rfds);
+            if (g_touch_fd > max_fd) max_fd = g_touch_fd;
+        }
+
+        struct timeval tv = { .tv_sec = 0, .tv_usec = 100000 };
+        int sel = select(max_fd + 1, &rfds, NULL, NULL, &tv);
+        if (sel < 0) {
+            if (errno == EINTR) continue;
             break;
+        }
+
+        /* 1. Physical Buttons (event0) */
+        if (g_btn_fd >= 0 && FD_ISSET(g_btn_fd, &rfds)) {
+            struct input_event ev;
+            while (read(g_btn_fd, &ev, sizeof(ev)) == sizeof(ev)) {
+                if (ev.type == EV_KEY) {
+                    reset_idle_timer();
+                    /* Physical buttons ALWAYS forward directly to Hub over RF */
+                    uint16_t rf_code = linux_to_harmony_rf_key(ev.code);
+                    if (rf_code != 0) {
+                        rf_send_button_event(rf_code, ev.value);
+                    }
+                }
+            }
+        }
+
+        /* 2. Touchscreen & Capacitive Buttons (event2) */
+        if (g_touch_fd >= 0 && FD_ISSET(g_touch_fd, &rfds)) {
+            struct input_event ev;
+            while (read(g_touch_fd, &ev, sizeof(ev)) == sizeof(ev)) {
+                if (ev.type == EV_KEY) {
+                    /* Capacitive buttons below screen: 102=Home/Activities, 364=Favorites/Devices */
+                    printf("[*] event2 EV_KEY: code=%d, val=%d\n", ev.code, ev.value);
+                    if (ev.code == 102 || ev.code == 364) {
+                        handle_navigation_key(ev.code, ev.value);
+                    } else if (ev.code == 330) { /* BTN_TOUCH */
+                        if (ev.value == 0) {
+                            if (g_touch_is_down) {
+                                handle_screen_touch_tap(g_touch_cur_x, g_touch_cur_y);
+                                g_touch_is_down = false;
+                            }
+                        } else {
+                            g_touch_is_down = true;
+                        }
+                    }
+                } else if (ev.type == EV_ABS) {
+                    if (ev.code == ABS_X || ev.code == ABS_MT_POSITION_X) {
+                        g_touch_cur_x = ev.value;
+                    } else if (ev.code == ABS_Y || ev.code == ABS_MT_POSITION_Y) {
+                        g_touch_cur_y = ev.value;
+                    } else if (ev.code == ABS_PRESSURE) {
+                        if (ev.value > 0) {
+                            g_touch_is_down = true;
+                        } else if (ev.value == 0 && g_touch_is_down) {
+                            handle_screen_touch_tap(g_touch_cur_x, g_touch_cur_y);
+                            g_touch_is_down = false;
+                        }
+                    }
+                }
+            }
         }
     }
 

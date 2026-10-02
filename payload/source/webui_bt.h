@@ -53,6 +53,8 @@ void render_bluetooth_text_status_json(int fd);
 void render_bt_sent_log_json(int fd);
 void render_remote_mapping_json(int fd);
 void render_remote_mapping_save_json(int fd, const struct request *req);
+void render_elite_mapping_json(int fd);
+void render_elite_mapping_save_json(int fd, const struct request *req);
 void render_remote_scan_json(int fd, const struct request *req);
 void render_remote_scan_result_json(int fd);
 void render_remote_pair_status_json(int fd);

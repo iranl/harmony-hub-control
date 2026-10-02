@@ -239,6 +239,38 @@ void webui_capture_tick(int is_readable) {
     }
 }
 
+static void serve_static_asset(int client, const char *path, const char *mime) {
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        cJSON *err = cJSON_CreateObject();
+        cJSON_AddBoolToObject(err, "ok", 0);
+        cJSON_AddStringToObject(err, "error", "Asset not found");
+        send_cjson_resp(client, "404 Not Found", err);
+        cJSON_Delete(err);
+        return;
+    }
+    struct stat st;
+    if (fstat(fd, &st) != 0) {
+        close(fd);
+        return;
+    }
+    char hdr[256];
+    int hlen = snprintf(hdr, sizeof(hdr),
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: %s\r\n"
+        "Content-Length: %ld\r\n"
+        "Cache-Control: public, max-age=86400\r\n"
+        "Connection: close\r\n\r\n",
+        mime, (long)st.st_size);
+    write(client, hdr, hlen);
+    char buf[4096];
+    ssize_t n;
+    while ((n = read(fd, buf, sizeof(buf))) > 0) {
+        write(client, buf, n);
+    }
+    close(fd);
+}
+
 static void handle_client(int client) {
     struct request req;
     if (read_request(client, &req) != 0) {
@@ -340,6 +372,12 @@ static void handle_client(int client) {
         render_remote_mapping_json(client);
     } else if (strcmp(req.method, "POST") == 0 && strcmp(req.path, "/api/remote-mapping-save") == 0) {
         render_remote_mapping_save_json(client, &req);
+    } else if (strcmp(req.method, "GET") == 0 && strcmp(req.path, "/api/elite-mapping") == 0) {
+        render_elite_mapping_json(client);
+    } else if (strcmp(req.method, "POST") == 0 && strcmp(req.path, "/api/elite-mapping-save") == 0) {
+        render_elite_mapping_save_json(client, &req);
+    } else if (strcmp(req.method, "GET") == 0 && strcmp(req.path, "/assets/remote_elite_skin.jpg") == 0) {
+        serve_static_asset(client, "/data/codex/assets/remote_elite_skin.jpg", "image/jpeg");
     } else if (strcmp(req.method, "GET") == 0 && strcmp(req.path, "/api/ui-remote-layout") == 0) {
         render_web_remote_layout_json(client);
     } else if (strcmp(req.method, "POST") == 0 && strcmp(req.path, "/api/ui-remote-layout") == 0) {
