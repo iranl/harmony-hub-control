@@ -337,6 +337,23 @@ class HarmonyApp {
 
   async loadActiveHub() {
     this.activeHub = await getActiveHub();
+    if (!this.activeHub) {
+      const hubs = await getSavedHubs();
+      if (!hubs.length) {
+        // Create initial default hub pointing to 10.234.234.98
+        const defaultHub = {
+          id: 'hub_default',
+          name: 'Harmony Hub',
+          host: '10.234.234.98',
+          port: 8080,
+          wsPort: 8089
+        };
+        await saveHub(defaultHub);
+        await setActiveHubId(defaultHub.id);
+        this.activeHub = defaultHub;
+      }
+    }
+
     if (this.activeHub) {
       document.getElementById('activeHubLabel').textContent = this.activeHub.name || 'Harmony Hub';
       this.client.updateHub(this.activeHub);
@@ -344,7 +361,7 @@ class HarmonyApp {
     } else {
       document.getElementById('activeHubLabel').textContent = 'No Hub Selected';
       this.setHubStatus(false);
-      this.openHubModal();
+      this.openAddHubModal();
     }
   }
 
@@ -356,6 +373,15 @@ class HarmonyApp {
       ]);
       this.inventory = inv || { devices: [] };
       this.activitiesData = acts || { activities: [], currentId: '-1', currentName: 'PowerOff' };
+
+      // Populate deviceCommandsMap so remote engine and commands tabs have full access
+      this.deviceCommandsMap = {};
+      (this.inventory.devices || []).forEach(d => {
+        if (d && d.id) {
+          this.deviceCommandsMap[d.id] = Array.isArray(d.commands) ? d.commands : [];
+        }
+      });
+
       this.setHubStatus(true);
     } catch (err) {
       console.warn('Failed to load initial hub data:', err);
@@ -621,21 +647,86 @@ class HarmonyApp {
       if (delBtn) delBtn.style.display = 'none';
     }
 
-    // Participating devices checkboxes
+    // Participating devices in power order (like web UI)
     const chkCont = document.getElementById('actDevicesCheckboxes');
     if (chkCont) {
-      const partDevs = new Set((act?.devices || []).map(String));
-      chkCont.innerHTML = (this.inventory.devices || []).map(d => `
-        <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer;">
-          <input type="checkbox" class="act-part-dev" value="${d.id}" ${partDevs.has(String(d.id)) ? 'checked' : ''}>
-          <span>${d.name || d.model || d.id}</span>
-        </label>
-      `).join('');
+      const partDevIds = (act?.deviceIds || act?.devices || []).map(String);
+      chkCont.innerHTML = `
+        <div id="actDevOrderedList" class="queue-list" style="min-height: 40px; max-height: 180px; margin-bottom: 6px;"></div>
+        <div style="display: flex; gap: 6px; align-items: center; margin-top: 4px;">
+          <select id="actAddDevSelect" class="form-control" style="flex: 1;">
+            ${(this.inventory.devices || []).map(d => `<option value="${d.id}">${d.name || d.model || d.id}</option>`).join('')}
+          </select>
+          <button type="button" id="actAddDevBtn" class="btn btn-xs btn-secondary">+ Add Device</button>
+        </div>
+        <div class="muted mini" style="margin-top: 4px;">Start/Stop Order: Devices power ON in order (#1..#N) and power OFF in reverse.</div>
+      `;
+
+      const listWrap = document.getElementById('actDevOrderedList');
+      const addSel = document.getElementById('actAddDevSelect');
+      const addBtn = document.getElementById('actAddDevBtn');
+
+      const renderDevRow = (did) => {
+        const d = (this.inventory.devices || []).find(x => String(x.id) === String(did));
+        const name = d ? (d.name || d.model || d.id) : `Device ${did}`;
+        const row = document.createElement('div');
+        row.className = 'queue-row act-dev-row';
+        row.dataset.devId = String(did);
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;margin-bottom:4px;';
+        row.innerHTML = `
+          <span class="muted mini act-dev-num" style="min-width:24px;">#</span>
+          <span style="flex:1;font-weight:600;font-size:13px;">${name}</span>
+          <div style="display:flex;gap:4px;">
+            <button type="button" class="btn btn-xs btn-ghost btn-dev-up">↑</button>
+            <button type="button" class="btn btn-xs btn-ghost btn-dev-down">↓</button>
+            <button type="button" class="btn btn-xs btn-danger btn-dev-del">✕</button>
+          </div>
+        `;
+        row.querySelector('.btn-dev-up').addEventListener('click', () => {
+          if (row.previousElementSibling) {
+            listWrap.insertBefore(row, row.previousElementSibling);
+            updateDevNums();
+          }
+        });
+        row.querySelector('.btn-dev-down').addEventListener('click', () => {
+          if (row.nextElementSibling) {
+            listWrap.insertBefore(row.nextElementSibling, row);
+            updateDevNums();
+          }
+        });
+        row.querySelector('.btn-dev-del').addEventListener('click', () => {
+          row.remove();
+          updateDevNums();
+        });
+        listWrap.appendChild(row);
+        updateDevNums();
+      };
+
+      const updateDevNums = () => {
+        listWrap.querySelectorAll('.act-dev-row').forEach((r, idx) => {
+          const num = r.querySelector('.act-dev-num');
+          if (num) num.textContent = `#${idx + 1}`;
+        });
+      };
+
+      partDevIds.forEach(did => renderDevRow(did));
+
+      if (addBtn) {
+        addBtn.addEventListener('click', () => {
+          const val = addSel?.value;
+          if (!val) return;
+          const exists = Array.from(listWrap.querySelectorAll('.act-dev-row')).some(r => r.dataset.devId === String(val));
+          if (exists) return alert('Device already added to order.');
+          renderDevRow(val);
+        });
+      }
     }
 
-    // Render Sequences
-    this.renderSequenceList('actStartStepsList', act?.startSequence || []);
-    this.renderSequenceList('actStopStepsList', act?.stopSequence || []);
+    // Render Sequences (support startSteps/stopSteps or startSequence/stopSequence)
+    const rawStart = act?.startSteps || act?.startSequence || [];
+    const rawStop = act?.stopSteps || act?.stopSequence || [];
+    this.renderSequenceList('actStartStepsList', rawStart);
+    this.renderSequenceList('actStopStepsList', rawStop);
   }
 
   renderSequenceList(containerId, steps = []) {
@@ -661,24 +752,75 @@ class HarmonyApp {
     row.className = 'queue-row';
     const isDelay = (type === 'Delay');
 
+    const devices = this.inventory.devices || [];
+    const initDevId = initialData?.deviceId ? String(initialData.deviceId) : (devices[0]?.id || '');
+    const initCmd = initialData?.command || '';
+    const initDelay = initialData?.delay !== undefined ? initialData.delay : (initialData?.delayMs || (isDelay ? 1000 : 0));
+
     row.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
-        <span class="badge ${isDelay ? 'warn' : 'ok'}" style="min-width: 60px; justify-content: center;">${isDelay ? 'Delay' : 'Command'}</span>
-        ${isDelay ? `
-          <input type="number" class="form-control step-delay-ms" min="50" max="60000" step="50" value="${initialData?.delayMs || 1000}" style="width: 110px;"> ms
-        ` : `
-          <select class="form-control step-dev-select" style="max-width: 140px;">
-            ${(this.inventory.devices || []).map(d => `<option value="${d.id}" ${String(d.id) === String(initialData?.deviceId) ? 'selected' : ''}>${d.name || d.id}</option>`).join('')}
-          </select>
-          <input type="text" class="form-control step-cmd-input" value="${initialData?.command || ''}" placeholder="Command (e.g. PowerOn)" style="flex: 1;">
-        `}
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 1;">
+        <select class="form-control step-type-select" style="width: 95px; font-size: 12px; padding: 4px 6px;">
+          <option value="IRCommand" ${!isDelay ? 'selected' : ''}>Command</option>
+          <option value="Delay" ${isDelay ? 'selected' : ''}>Delay</option>
+        </select>
+        <select class="form-control step-dev-select" style="max-width: 130px; font-size: 12px; padding: 4px 6px; display: ${isDelay ? 'none' : 'block'};">
+          ${devices.map(d => `<option value="${d.id}" ${String(d.id) === initDevId ? 'selected' : ''}>${d.name || d.model || d.id}</option>`).join('')}
+        </select>
+        <select class="form-control step-cmd-select" style="flex: 1; min-width: 120px; font-size: 12px; padding: 4px 6px; display: ${isDelay ? 'none' : 'block'};"></select>
+        <div class="step-delay-wrap" style="display: inline-flex; align-items: center; gap: 4px;">
+          <span class="muted mini" style="font-size: 11px;">Wait:</span>
+          <input type="number" class="form-control step-delay-input" min="0" max="60000" step="100" value="${initDelay}" style="width: 75px; font-size: 12px; padding: 4px 6px;">
+          <span class="muted mini" style="font-size: 11px;">ms</span>
+        </div>
       </div>
-      <div style="display: flex; gap: 4px;">
-        <button type="button" class="btn btn-xs btn-ghost btn-step-up">↑</button>
-        <button type="button" class="btn btn-xs btn-ghost btn-step-down">↓</button>
-        <button type="button" class="btn btn-xs btn-danger btn-step-del">✕</button>
+      <div style="display: flex; gap: 3px; align-items: center;">
+        <button type="button" class="btn btn-xs btn-ghost btn-step-up" title="Move up">↑</button>
+        <button type="button" class="btn btn-xs btn-ghost btn-step-down" title="Move down">↓</button>
+        <button type="button" class="btn btn-xs btn-danger btn-step-del" title="Delete">✕</button>
       </div>
     `;
+
+    const typeSel = row.querySelector('.step-type-select');
+    const devSel = row.querySelector('.step-dev-select');
+    const cmdSel = row.querySelector('.step-cmd-select');
+    const delayWrap = row.querySelector('.step-delay-wrap');
+
+    const updateCmdsForDev = () => {
+      const selectedId = devSel.value;
+      const cmds = this.deviceCommandsMap[selectedId] || [];
+      cmdSel.innerHTML = '';
+      if (!cmds.length) {
+        cmdSel.innerHTML = '<option value="">(No commands)</option>';
+      } else {
+        cmds.forEach(c => {
+          const cName = c.name || c;
+          const opt = document.createElement('option');
+          opt.value = cName;
+          opt.textContent = cName;
+          if (cName === initCmd) opt.selected = true;
+          cmdSel.appendChild(opt);
+        });
+      }
+      if (initCmd && !Array.from(cmdSel.options).some(o => o.value === initCmd)) {
+        const customOpt = document.createElement('option');
+        customOpt.value = initCmd;
+        customOpt.textContent = initCmd;
+        customOpt.selected = true;
+        cmdSel.prepend(customOpt);
+      }
+    };
+
+    typeSel.addEventListener('change', () => {
+      const isD = typeSel.value === 'Delay';
+      devSel.style.display = isD ? 'none' : 'block';
+      cmdSel.style.display = isD ? 'none' : 'block';
+    });
+
+    devSel.addEventListener('change', () => {
+      updateCmdsForDev();
+    });
+
+    updateCmdsForDev();
 
     row.querySelector('.btn-step-up').addEventListener('click', () => {
       if (row.previousElementSibling) cont.insertBefore(row, row.previousElementSibling);
@@ -696,32 +838,34 @@ class HarmonyApp {
 
   serializeSequence(containerId) {
     const cont = document.getElementById(containerId);
-    if (!cont) return [];
-    const steps = [];
+    if (!cont) return '';
+    const lines = [];
     cont.querySelectorAll('.queue-row').forEach(row => {
-      const delayInp = row.querySelector('.step-delay-ms');
-      if (delayInp) {
-        steps.push({ type: 'Delay', delayMs: Number(delayInp.value) || 1000 });
+      const typeSel = row.querySelector('.step-type-select');
+      const devSel = row.querySelector('.step-dev-select');
+      const cmdSel = row.querySelector('.step-cmd-select');
+      const delayInp = row.querySelector('.step-delay-input');
+
+      const isDelay = typeSel && typeSel.value === 'Delay';
+      const delay = parseInt(delayInp?.value, 10) || 0;
+      if (isDelay) {
+        lines.push(`Delay|||${delay || 1000}`);
       } else {
-        const devSel = row.querySelector('.step-dev-select');
-        const cmdInp = row.querySelector('.step-cmd-input');
-        if (devSel && cmdInp && cmdInp.value.trim()) {
-          steps.push({
-            type: 'IRCommand',
-            deviceId: devSel.value,
-            command: cmdInp.value.trim()
-          });
+        const did = devSel?.value || '';
+        const cmd = cmdSel?.value || '';
+        if (did && cmd) {
+          lines.push(`IRCommand|${did}|${cmd}|${delay}`);
         }
       }
     });
-    return steps;
+    return lines.join('\n');
   }
 
   async testLiveSequence(containerId) {
     const steps = this.serializeSequence(containerId);
-    if (!steps.length) return alert('No steps to test.');
+    if (!steps) return alert('No steps to test.');
     try {
-      await this.client.testActivitySequence(JSON.stringify(steps));
+      await this.client.testActivitySequence(steps);
       alert('Sequence test sent to hub.');
     } catch (err) {
       alert('Test failed: ' + err.message);
@@ -737,13 +881,23 @@ class HarmonyApp {
 
     if (!name) return alert('Activity name is required.');
 
-    const devices = [];
-    document.querySelectorAll('.act-part-dev:checked').forEach(cb => devices.push(cb.value));
+    const listWrap = document.getElementById('actDevOrderedList');
+    const deviceIds = listWrap
+      ? Array.from(listWrap.querySelectorAll('.act-dev-row')).map(r => r.dataset.devId).join(',')
+      : '';
 
-    const startSequence = this.serializeSequence('actStartStepsList');
-    const stopSequence = this.serializeSequence('actStopStepsList');
+    const startSteps = this.serializeSequence('actStartStepsList');
+    const stopSteps = this.serializeSequence('actStopStepsList');
 
-    const actObj = { id: id || undefined, name, type, order, devices, startSequence, stopSequence };
+    const actObj = {
+      id: id || '',
+      name,
+      type: type || 'VirtualTelevision',
+      order: String(order),
+      deviceIds,
+      startSteps,
+      stopSteps
+    };
 
     try {
       if (statusEl) statusEl.textContent = 'Saving activity...';
@@ -784,22 +938,25 @@ class HarmonyApp {
     const toAct = (this.activitiesData.activities || []).find(a => String(a.id) === String(toId));
 
     const steps = [];
-    if (fromAct && fromAct.stopSequence) {
-      fromAct.stopSequence.forEach(s => steps.push({ ...s, phase: 'Exit ' + fromAct.name }));
-    }
-    if (toAct && toAct.startSequence) {
-      toAct.startSequence.forEach(s => steps.push({ ...s, phase: 'Enter ' + toAct.name }));
-    }
+    const fromStop = fromAct?.stopSteps || fromAct?.stopSequence || [];
+    const toStart = toAct?.startSteps || toAct?.startSequence || [];
+
+    fromStop.forEach(s => steps.push({ ...s, phase: 'Exit ' + (fromAct ? fromAct.name : 'Current') }));
+    toStart.forEach(s => steps.push({ ...s, phase: 'Enter ' + (toAct ? toAct.name : 'Target') }));
 
     resultsBox.style.display = 'block';
     summaryEl.textContent = `Transition from ${fromAct ? fromAct.name : 'PowerOff'} to ${toAct ? toAct.name : 'PowerOff'} (${steps.length} total operations)`;
 
-    timelineEl.innerHTML = steps.map((st, i) => `
-      <div class="queue-row">
-        <span>${i + 1}. [${st.phase}] ${st.type === 'Delay' ? `Wait ${st.delayMs} ms` : `Send ${st.command} to ${st.deviceId}`}</span>
-        <span class="badge ${st.type === 'Delay' ? 'warn' : 'ok'}">${st.type}</span>
-      </div>
-    `).join('') || '<div class="muted mini">No operations required.</div>';
+    timelineEl.innerHTML = steps.map((st, i) => {
+      const isDelay = st.type === 'Delay';
+      const delayVal = st.delay !== undefined ? st.delay : (st.delayMs || 1000);
+      return `
+        <div class="queue-row" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;margin-bottom:4px;">
+          <span style="font-size:12px;">${i + 1}. [${st.phase}] ${isDelay ? `Wait ${delayVal} ms` : `Send ${st.command} to Device ${st.deviceId}`}</span>
+          <span class="badge ${isDelay ? 'warn' : 'ok'}">${st.type || 'IRCommand'}</span>
+        </div>
+      `;
+    }).join('') || '<div class="muted mini">No operations required.</div>';
   }
 
   /* -------------------------------------------------------------

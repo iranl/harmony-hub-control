@@ -1,6 +1,6 @@
 # Local Control API
 
-The web UI intentionally has no HTTP authentication. Run it only on a trusted LAN or behind your own access controls.
+HTTP authentication can be configured via the WebUI Settings page. Run the hub only on a trusted LAN or behind your own access controls.
 
 All write endpoints accept `application/x-www-form-urlencoded` bodies. JSON responses use `ok: true` on success and `ok: false` with `error` on failure.
 

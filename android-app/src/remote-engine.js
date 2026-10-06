@@ -388,13 +388,21 @@ export class RemoteEngine {
 
   async loadLayout(scope, target, availableDevices, commandsMap) {
     let saved = await getRemoteLayout(scope, target.id);
-    if (!saved || !Array.isArray(saved.grid) || saved.grid.length !== 40) {
+    const hasAnyButtons = saved && Array.isArray(saved.grid) && saved.grid.some(b => b && b.command);
+
+    if (!saved || !Array.isArray(saved.grid) || saved.grid.length !== 40 || !hasAnyButtons) {
       saved = this.generateDefaultLayout(scope, target, availableDevices, commandsMap);
       await saveRemoteLayout(scope, target.id, saved);
     } else {
       const { sanitized, changed } = this.sanitizeGrid(saved.grid);
       if (changed) {
-        saved.grid = sanitized;
+        // If sanitization stripped all buttons because commands map was previously missing, regenerate
+        const stillHasButtons = sanitized.some(b => b && b.command);
+        if (!stillHasButtons) {
+          saved = this.generateDefaultLayout(scope, target, availableDevices, commandsMap);
+        } else {
+          saved.grid = sanitized;
+        }
         await saveRemoteLayout(scope, target.id, saved);
       }
     }

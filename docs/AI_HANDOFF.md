@@ -12,7 +12,7 @@ already rooted Logitech Harmony Hub.
 - This repository is not the rooting tool.
 - Do not add LAN or USB rooting material here.
 - Do not include private keys, tokens, MQTT passwords, Home Assistant tokens, firmware dumps, or hub backups.
-- The web UI intentionally has no HTTP authentication right now. Treat it as a trusted-LAN-only tool.
+- HTTP authentication can be configured using the WebUI. The hub should only be accessible on a trusted LAN.
 - The installer expects root SSH to already work.
 
 ## Main Files

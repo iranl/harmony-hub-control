@@ -3,6 +3,7 @@
 Thumbs.db
 .vscode/
 .idea/
+AGENTS.md
 
 # Local archives and generated packages
 *.zip
@@ -55,3 +56,10 @@ node_modules/
 scratch/
 test_*
 scratch_*
+
+# Root-level development binaries and debug logs
+arm_gpio17
+watch_gpio17
+remote_test_i2c
+r8152_orig.ko
+codex_rf_hub.*
