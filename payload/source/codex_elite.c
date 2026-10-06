@@ -15,7 +15,9 @@
 #include <sys/stat.h>
 #include <linux/input.h>
 #include <linux/fb.h>
+#include <linux/i2c-dev.h>
 #include "cJSON.h"
+#include "codex_rf_proto.h"
 
 #define FB_DEV              "/dev/fb0"
 #define FB_BLANK_SYSFS      "/sys/class/graphics/fb0/blank"
@@ -68,25 +70,228 @@ static int g_activity_count = 0;
 static int g_selected_activity = 0;
 static char g_active_activity_id[32] = "-1";
 static char g_active_activity_name[48] = "PowerOff";
+static void reset_idle_timer(void);
 
 /* Device item */
 typedef struct {
+    char dev_id[32];
     char name[32];
     char command[32];
-    uint16_t rf_code;
 } device_item_t;
 
 static const device_item_t g_device_commands[] = {
-    {"TV", "PowerToggle", 0x01EC},
-    {"TV", "InputHdmi1", 0x0101},
-    {"TV", "InputHdmi2", 0x0102},
-    {"Receiver", "PowerToggle", 0x0103},
-    {"Receiver", "Mute", 0x00E2},
-    {"Shield", "Home", 0x0065},
-    {"Shield", "Back", 0x0225}
+    {"75784548", "Samsung TV", "PowerToggle"},
+    {"75784548", "Samsung TV", "Mute"},
+    {"72738267", "Denon AVR",  "PowerToggle"},
+    {"72738267", "Denon AVR",  "Mute"},
+    {"72738272", "Shield TV",  "Home"},
+    {"72738272", "Shield TV",  "Back"},
+    {"78134038", "Domo Fan",   "PowerToggle"}
 };
 #define DEVICE_CMD_COUNT ((int)(sizeof(g_device_commands) / sizeof(g_device_commands[0])))
 static int g_selected_device_cmd = 0;
+
+#define MAX_RF_ACTIVITIES 16
+#define MAX_RF_DEVICES    16
+#define MAX_RF_BUTTONS    48
+
+typedef struct {
+    char id[13];
+    char name[15];
+} rf_activity_t;
+
+typedef struct {
+    char id[13];
+    char name[15];
+} rf_device_t;
+
+typedef struct {
+    char context_id[13];  /* activity or device ID */
+    char label[13];       /* short button label */
+    uint8_t context_type; /* 0=activity, 1=device */
+    uint8_t action_type;  /* 1=device_cmd, 2=activity_start, 3=activity_stop */
+} rf_button_t;
+
+static rf_activity_t g_rf_activities[MAX_RF_ACTIVITIES];
+static int g_rf_activity_count = 0;
+static rf_device_t g_rf_devices[MAX_RF_DEVICES];
+static int g_rf_device_count = 0;
+static rf_button_t g_rf_buttons[MAX_RF_BUTTONS];
+static int g_rf_button_count = 0;
+static uint8_t g_config_version = 0;
+static bool g_has_hub_config = false;
+static uint8_t g_tx_seq = 0;
+
+static int get_device_cmd_count(void) {
+    if (g_has_hub_config && g_rf_button_count > 0) {
+        return g_rf_button_count;
+    }
+    return (int)(sizeof(g_device_commands) / sizeof(g_device_commands[0]));
+}
+
+static void get_device_cmd_item(int idx, char *out_name, size_t name_len, char *out_cmd, size_t cmd_len, char *out_dev, size_t dev_len, uint8_t *out_atype) {
+    if (g_has_hub_config && g_rf_button_count > 0 && idx >= 0 && idx < g_rf_button_count) {
+        strncpy(out_name, g_rf_buttons[idx].context_id, name_len - 1);
+        out_name[name_len - 1] = '\0';
+        strncpy(out_cmd, g_rf_buttons[idx].label, cmd_len - 1);
+        out_cmd[cmd_len - 1] = '\0';
+        strncpy(out_dev, g_rf_buttons[idx].context_id, dev_len - 1);
+        out_dev[dev_len - 1] = '\0';
+        if (out_atype) *out_atype = g_rf_buttons[idx].action_type;
+        return;
+    }
+    if (idx >= 0 && idx < (int)(sizeof(g_device_commands) / sizeof(g_device_commands[0]))) {
+        strncpy(out_name, g_device_commands[idx].name, name_len - 1);
+        out_name[name_len - 1] = '\0';
+        strncpy(out_cmd, g_device_commands[idx].command, cmd_len - 1);
+        out_cmd[cmd_len - 1] = '\0';
+        strncpy(out_dev, g_device_commands[idx].dev_id, dev_len - 1);
+        out_dev[dev_len - 1] = '\0';
+        if (out_atype) *out_atype = 1;
+        return;
+    }
+    out_name[0] = '\0';
+    out_cmd[0] = '\0';
+    out_dev[0] = '\0';
+    if (out_atype) *out_atype = 0;
+}
+
+#define RF_CONFIG_FILE "/data/codex_elite_config.json"
+
+static void save_rf_config(void) {
+    cJSON *root = cJSON_CreateObject();
+    if (!root) return;
+    cJSON_AddNumberToObject(root, "version", g_config_version);
+
+    cJSON *acts = cJSON_AddArrayToObject(root, "activities");
+    for (int i = 0; i < g_rf_activity_count; i++) {
+        cJSON *a = cJSON_CreateObject();
+        cJSON_AddStringToObject(a, "id", g_rf_activities[i].id);
+        cJSON_AddStringToObject(a, "name", g_rf_activities[i].name);
+        cJSON_AddItemToArray(acts, a);
+    }
+
+    cJSON *devs = cJSON_AddArrayToObject(root, "devices");
+    for (int i = 0; i < g_rf_device_count; i++) {
+        cJSON *d = cJSON_CreateObject();
+        cJSON_AddStringToObject(d, "id", g_rf_devices[i].id);
+        cJSON_AddStringToObject(d, "name", g_rf_devices[i].name);
+        cJSON_AddItemToArray(devs, d);
+    }
+
+    cJSON *btns = cJSON_AddArrayToObject(root, "buttons");
+    for (int i = 0; i < g_rf_button_count; i++) {
+        cJSON *b = cJSON_CreateObject();
+        cJSON_AddStringToObject(b, "ctx", g_rf_buttons[i].context_id);
+        cJSON_AddStringToObject(b, "label", g_rf_buttons[i].label);
+        cJSON_AddNumberToObject(b, "ctype", g_rf_buttons[i].context_type);
+        cJSON_AddNumberToObject(b, "atype", g_rf_buttons[i].action_type);
+        cJSON_AddItemToArray(btns, b);
+    }
+
+    char *json = cJSON_PrintUnformatted(root);
+    if (json) {
+        FILE *f = fopen(RF_CONFIG_FILE, "w");
+        if (f) { fputs(json, f); fclose(f); }
+        free(json);
+    }
+    cJSON_Delete(root);
+}
+
+static void load_rf_config(void) {
+    FILE *f = fopen(RF_CONFIG_FILE, "r");
+    if (!f) return;
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (sz <= 0 || sz > 50000) { fclose(f); return; }
+    char *buf = malloc(sz + 1);
+    if (!buf) { fclose(f); return; }
+    size_t rd = fread(buf, 1, sz, f);
+    buf[rd] = '\0';
+    fclose(f);
+
+    cJSON *root = cJSON_Parse(buf);
+    free(buf);
+    if (!root) return;
+
+    cJSON *j_ver = cJSON_GetObjectItem(root, "version");
+    if (j_ver && cJSON_IsNumber(j_ver)) g_config_version = (uint8_t)j_ver->valueint;
+
+    cJSON *acts = cJSON_GetObjectItem(root, "activities");
+    g_rf_activity_count = 0;
+    if (acts && cJSON_IsArray(acts)) {
+        cJSON *a = NULL;
+        cJSON_ArrayForEach(a, acts) {
+            if (g_rf_activity_count >= MAX_RF_ACTIVITIES) break;
+            cJSON *jid = cJSON_GetObjectItem(a, "id");
+            cJSON *jname = cJSON_GetObjectItem(a, "name");
+            if (jid && jname && cJSON_IsString(jid) && cJSON_IsString(jname)) {
+                strncpy(g_rf_activities[g_rf_activity_count].id, jid->valuestring, 12);
+                g_rf_activities[g_rf_activity_count].id[12] = '\0';
+                strncpy(g_rf_activities[g_rf_activity_count].name, jname->valuestring, 14);
+                g_rf_activities[g_rf_activity_count].name[14] = '\0';
+                g_rf_activity_count++;
+            }
+        }
+    }
+
+    cJSON *devs = cJSON_GetObjectItem(root, "devices");
+    g_rf_device_count = 0;
+    if (devs && cJSON_IsArray(devs)) {
+        cJSON *d = NULL;
+        cJSON_ArrayForEach(d, devs) {
+            if (g_rf_device_count >= MAX_RF_DEVICES) break;
+            cJSON *jid = cJSON_GetObjectItem(d, "id");
+            cJSON *jname = cJSON_GetObjectItem(d, "name");
+            if (jid && jname && cJSON_IsString(jid) && cJSON_IsString(jname)) {
+                strncpy(g_rf_devices[g_rf_device_count].id, jid->valuestring, 12);
+                g_rf_devices[g_rf_device_count].id[12] = '\0';
+                strncpy(g_rf_devices[g_rf_device_count].name, jname->valuestring, 14);
+                g_rf_devices[g_rf_device_count].name[14] = '\0';
+                g_rf_device_count++;
+            }
+        }
+    }
+
+    cJSON *btns = cJSON_GetObjectItem(root, "buttons");
+    g_rf_button_count = 0;
+    if (btns && cJSON_IsArray(btns)) {
+        cJSON *b = NULL;
+        cJSON_ArrayForEach(b, btns) {
+            if (g_rf_button_count >= MAX_RF_BUTTONS) break;
+            cJSON *jctx = cJSON_GetObjectItem(b, "ctx");
+            cJSON *jlbl = cJSON_GetObjectItem(b, "label");
+            cJSON *jctype = cJSON_GetObjectItem(b, "ctype");
+            cJSON *jatype = cJSON_GetObjectItem(b, "atype");
+            if (jctx && jlbl && cJSON_IsString(jctx) && cJSON_IsString(jlbl)) {
+                strncpy(g_rf_buttons[g_rf_button_count].context_id, jctx->valuestring, 12);
+                g_rf_buttons[g_rf_button_count].context_id[12] = '\0';
+                strncpy(g_rf_buttons[g_rf_button_count].label, jlbl->valuestring, 12);
+                g_rf_buttons[g_rf_button_count].label[12] = '\0';
+                g_rf_buttons[g_rf_button_count].context_type = jctype ? (uint8_t)jctype->valueint : 0;
+                g_rf_buttons[g_rf_button_count].action_type = jatype ? (uint8_t)jatype->valueint : 1;
+                g_rf_button_count++;
+            }
+        }
+    }
+
+    cJSON_Delete(root);
+    g_has_hub_config = (g_rf_activity_count > 0);
+    if (g_has_hub_config) {
+        g_activity_count = 0;
+        for (int i = 0; i < g_rf_activity_count && g_activity_count < MAX_ACTIVITIES; i++) {
+            strncpy(g_activities[g_activity_count].id, g_rf_activities[i].id, sizeof(g_activities[0].id) - 1);
+            strncpy(g_activities[g_activity_count].name, g_rf_activities[i].name, sizeof(g_activities[0].name) - 1);
+            g_activity_count++;
+        }
+        if (g_activity_count < MAX_ACTIVITIES) {
+            strcpy(g_activities[g_activity_count].id, "-1");
+            strcpy(g_activities[g_activity_count].name, "Power Off");
+            g_activity_count++;
+        }
+    }
+}
 
 /* Settings item */
 typedef enum {
@@ -118,6 +323,8 @@ static int g_rf_fd = -1;
 static ui_view_t g_current_view = VIEW_ACTIVITIES;
 static time_t g_last_activity_time = 0;
 static pthread_mutex_t g_render_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void render_screen(void);
 
 /* Touch tracking */
 static int g_touch_cur_x = 0;
@@ -511,59 +718,356 @@ static void *key_repeat_thread(void *arg) {
     return NULL;
 }
 
+static pthread_mutex_t g_rf_write_mutex = PTHREAD_MUTEX_INITIALIZER;
+static uint8_t g_remote_slot = 0x01;
+
+/* Send a Codex RF frame over /dev/rfspi using 30-byte eQuad end-device framing */
+static int rf_send_frame(rf_frame_t *frame) {
+    if (g_rf_fd < 0) return -1;
+    uint8_t raw[30];
+    memset(raw, 0, sizeof(raw));
+    raw[0] = 0x12;
+    raw[1] = frame->seq;
+    raw[2] = frame->hdr_flag ? frame->hdr_flag : (0x40 | (frame->seq & 0x0F));
+    raw[3] = frame->msg_type;
+    raw[4] = frame->flags;
+    memcpy(&raw[5], frame->payload, 25);
+    pthread_mutex_lock(&g_rf_write_mutex);
+    int ret = write(g_rf_fd, raw, sizeof(raw));
+    pthread_mutex_unlock(&g_rf_write_mutex);
+    return ret;
+}
+
+/* Send activity sync query to Hub */
+static void rf_send_sync_query(void) {
+    if (g_rf_fd < 0) return;
+    rf_frame_t f;
+    uint8_t payload[25] = {0};
+    payload[0] = 0x01; /* activity only */
+    rf_build_frame(&f, g_remote_slot, RF_MSG_SYNC_REQUEST, ++g_tx_seq, 0, payload, 1);
+    rf_send_frame(&f);
+    printf("[*] RF TX SYNC_REQUEST seq=%d slot=%d (byte1=0x%02X)\n", f.seq, f.dev_slot & 0x0F, f.dev_slot);
+    fflush(stdout);
+}
+
+/* Request full config from Hub */
+static void rf_send_full_sync_request(void) {
+    if (g_rf_fd < 0) return;
+    rf_frame_t f;
+    uint8_t payload[25] = {0};
+    payload[0] = 0x02; /* full config */
+    rf_build_frame(&f, g_remote_slot, RF_MSG_SYNC_REQUEST, ++g_tx_seq, 0, payload, 1);
+    rf_send_frame(&f);
+    printf("[*] RF TX FULL_SYNC_REQUEST seq=%d slot=%d (byte1=0x%02X)\n", f.seq, f.dev_slot & 0x0F, f.dev_slot);
+    fflush(stdout);
+}
+
 /* Transmit button event over RF to Hub */
 static void rf_send_button_event(uint16_t key_code, int value) {
-    if (key_code == 0) return;
-    /* value: 1 = press, 2 = repeat, 0 = release */
+    if (key_code == 0 || g_rf_fd < 0) return;
     if (value < 0 || value > 2) return;
 
-    if (g_rf_fd >= 0) {
-        printf("[*] RF Send Button: 0x%04X (val=%d)\n", key_code, value);
+    const char *short_name = rf_short_button_name(key_code);
+    uint8_t state = (value == 1) ? 0x01 : ((value == 2) ? 0x02 : 0x00);
 
-        /* Single Report 0x20 (32 bytes) with dev_idx=0x01, sub_id=0x01 */
-        uint8_t pkt20[32] = {0};
-        pkt20[0] = 0x20;
-        pkt20[1] = 0x01;
-        pkt20[2] = 0x01;
-        pkt20[3] = (uint8_t)(key_code >> 8);
-        pkt20[4] = (uint8_t)(key_code & 0xFF);
-        pkt20[5] = (value == 0) ? 0x00 : 0x01;
-        write(g_rf_fd, pkt20, sizeof(pkt20));
-    }
+    rf_frame_t f;
+    uint8_t payload[26] = {0};
+    payload[0] = (uint8_t)(key_code >> 8);
+    payload[1] = (uint8_t)(key_code & 0xFF);
+    payload[2] = state;
+    strncpy((char *)&payload[3], short_name, 12);
+    rf_build_frame(&f, g_remote_slot, RF_MSG_BUTTON_PRESS, ++g_tx_seq, 0, payload, 15);
+
+    rf_send_frame(&f);
+
+    printf("[*] RF TX BUTTON_PRESS: 0x%04X %s %s\n", key_code,
+           state == 0x01 ? "press" : (state == 0x02 ? "hold" : "release"), short_name);
 }
 
 /* Transmit Activity Switch command over RF */
 static void rf_send_activity_start(const char *act_id) {
-    if (g_rf_fd >= 0) {
-        printf("[*] RF Send Activity: %s\n", act_id);
+    if (g_rf_fd < 0) return;
 
-        if (strcmp(act_id, "-1") == 0) {
-            rf_send_button_event(0x01EC, 1);
-            usleep(50000);
-            rf_send_button_event(0x01EC, 0);
+    rf_frame_t f;
+    uint8_t payload[26] = {0};
+    strncpy((char *)payload, act_id, 12);
+    rf_build_frame(&f, g_remote_slot, RF_MSG_ACTIVITY_REQUEST, ++g_tx_seq, 0, payload, 12);
+
+    rf_send_frame(&f);
+
+    printf("[*] RF TX ACTIVITY_REQUEST: %s\n", act_id);
+}
+
+/* Transmit Device command over RF */
+static void rf_send_device_command(const char *dev_id, const char *cmd) {
+    if (g_rf_fd < 0) return;
+
+    rf_frame_t f;
+    uint8_t payload[26] = {0};
+    strncpy((char *)payload, dev_id, 10);
+    strncpy((char *)&payload[10], cmd, 16);
+    rf_build_frame(&f, g_remote_slot, RF_MSG_DEVICE_CMD_REQUEST, ++g_tx_seq, 0, payload, 26);
+
+    rf_send_frame(&f);
+
+    printf("[*] RF TX DEVICE_CMD: dev=%s cmd=%s\n", dev_id, cmd);
+}
+
+/* Execute command/activity for given item index */
+static void execute_device_cmd_item(int idx) {
+    char name[32] = {0}, cmd[32] = {0}, dev[32] = {0};
+    uint8_t atype = 1;
+    get_device_cmd_item(idx, name, sizeof(name), cmd, sizeof(cmd), dev, sizeof(dev), &atype);
+    if (atype == 2) {
+        printf("[*] Triggering Activity: %s\n", dev);
+        rf_send_activity_start(dev);
+    } else if (atype == 3) {
+        printf("[*] Triggering Activity Stop\n");
+        rf_send_activity_start("-1");
+    } else {
+        printf("[*] Triggering Device Command: dev=%s cmd=%s\n", dev, cmd);
+        rf_send_device_command(dev, cmd);
+    }
+}
+
+/* Handle incoming Codex RF protocol frame on Remote */
+static void handle_codex_frame_remote(const rf_frame_t *f) {
+    if (f->dev_slot & 0x0F) g_remote_slot = f->dev_slot & 0x0F;
+
+    switch (f->msg_type) {
+
+        case RF_MSG_ACTIVITY_SYNC: {
+            char act_id[13] = {0};
+            char act_name[17] = {0};
+            memcpy(act_id, f->payload, 12);
+            memcpy(act_name, &f->payload[12], 14);
+
+            if (strcmp(g_active_activity_id, act_id) != 0) {
+                printf("[*] Hub Activity Sync: id=%s name=%s\n", act_id, act_name);
+                strncpy(g_active_activity_id, act_id, sizeof(g_active_activity_id) - 1);
+                strncpy(g_active_activity_name, act_name, sizeof(g_active_activity_name) - 1);
+                reset_idle_timer();
+                render_screen();
+            }
+            break;
+        }
+
+        case RF_MSG_CONFIG_END: {
+            uint8_t phase = f->payload[0];
+            uint8_t version = f->payload[1];
+            printf("[*] CONFIG_END: phase=%s version=%d\n", phase == 0 ? "clear" : "complete", version);
+            if (phase == 0x00) {
+                g_rf_activity_count = 0;
+                g_rf_device_count = 0;
+                g_rf_button_count = 0;
+            } else {
+                g_config_version = version;
+                g_has_hub_config = true;
+                save_rf_config();
+                g_activity_count = 0;
+                for (int i = 0; i < g_rf_activity_count && g_activity_count < MAX_ACTIVITIES; i++) {
+                    strncpy(g_activities[g_activity_count].id, g_rf_activities[i].id, sizeof(g_activities[0].id) - 1);
+                    strncpy(g_activities[g_activity_count].name, g_rf_activities[i].name, sizeof(g_activities[0].name) - 1);
+                    g_activity_count++;
+                }
+                if (g_activity_count < MAX_ACTIVITIES) {
+                    strcpy(g_activities[g_activity_count].id, "-1");
+                    strcpy(g_activities[g_activity_count].name, "Power Off");
+                    g_activity_count++;
+                }
+                render_screen();
+            }
+            rf_frame_t ack;
+            rf_build_ack(&ack, g_remote_slot, f->seq, 0x00);
+            rf_send_frame(&ack);
+            break;
+        }
+
+        case RF_MSG_ACTIVITY_LIST_CHUNK: {
+            uint8_t idx = f->payload[0];
+            if (idx < MAX_RF_ACTIVITIES) {
+                memcpy(g_rf_activities[idx].id, &f->payload[2], 10);
+                g_rf_activities[idx].id[10] = '\0';
+                memcpy(g_rf_activities[idx].name, &f->payload[12], 14);
+                g_rf_activities[idx].name[14] = '\0';
+                if (idx >= g_rf_activity_count) g_rf_activity_count = idx + 1;
+                printf("[*] Activity chunk %d: %s (%s)\n", idx, g_rf_activities[idx].name, g_rf_activities[idx].id);
+            }
+            rf_frame_t ack;
+            rf_build_ack(&ack, g_remote_slot, f->seq, 0x00);
+            rf_send_frame(&ack);
+            break;
+        }
+
+        case RF_MSG_DEVICE_LIST_CHUNK: {
+            uint8_t idx = f->payload[0];
+            if (idx < MAX_RF_DEVICES) {
+                memcpy(g_rf_devices[idx].id, &f->payload[2], 10);
+                g_rf_devices[idx].id[10] = '\0';
+                memcpy(g_rf_devices[idx].name, &f->payload[12], 14);
+                g_rf_devices[idx].name[14] = '\0';
+                if (idx >= g_rf_device_count) g_rf_device_count = idx + 1;
+            }
+            rf_frame_t ack;
+            rf_build_ack(&ack, g_remote_slot, f->seq, 0x00);
+            rf_send_frame(&ack);
+            break;
+        }
+
+        case RF_MSG_BUTTON_LIST_CHUNK: {
+            uint8_t idx = f->payload[0];
+            if (idx < MAX_RF_BUTTONS) {
+                g_rf_buttons[idx].context_type = f->payload[2];
+                memcpy(g_rf_buttons[idx].context_id, &f->payload[3], 9);
+                g_rf_buttons[idx].context_id[9] = '\0';
+                memcpy(g_rf_buttons[idx].label, &f->payload[12], 12);
+                g_rf_buttons[idx].label[12] = '\0';
+                g_rf_buttons[idx].action_type = f->payload[24];
+                if (idx >= g_rf_button_count) g_rf_button_count = idx + 1;
+            }
+            rf_frame_t ack;
+            rf_build_ack(&ack, g_remote_slot, f->seq, 0x00);
+            rf_send_frame(&ack);
+            break;
+        }
+
+        case RF_MSG_SETTINGS_PUSH: {
+            g_brightness_val = f->payload[0];
+            if (g_brightness_val < 1) g_brightness_val = 1;
+            if (g_brightness_val > 5) g_brightness_val = 5;
+            g_touch_enabled = (f->payload[1] != 0);
+            g_gyro_enabled = (f->payload[2] != 0);
+            g_timeout_seconds = ((int)f->payload[3] << 8) | f->payload[4];
+            set_backlight_level(g_brightness_val);
+            save_settings_conf();
+            printf("[*] Settings push: bright=%d touch=%d gyro=%d timeout=%d\n",
+                   g_brightness_val, g_touch_enabled, g_gyro_enabled, g_timeout_seconds);
+            rf_frame_t ack;
+            rf_build_ack(&ack, g_remote_slot, f->seq, 0x00);
+            rf_send_frame(&ack);
+            break;
+        }
+
+        case RF_MSG_PING: {
+            rf_frame_t ack;
+            rf_build_ack(&ack, g_remote_slot, f->seq, 0x00);
+            rf_send_frame(&ack);
+            break;
+        }
+
+        default:
+            printf("[*] Remote: unknown Codex frame type 0x%02X\n", f->msg_type);
+            break;
+    }
+}
+
+/* Background thread: blocking read on /dev/rfspi for Activity Sync and commands from Hub */
+static void *rf_rx_worker(void *arg) {
+    (void)arg;
+    uint8_t pkt[64];
+
+    while (g_running) {
+        if (g_rf_fd < 0) { usleep(100000); continue; }
+        ssize_t n = read(g_rf_fd, pkt, sizeof(pkt));
+        if (n <= 0) {
+            if (n < 0 && errno != EINTR) usleep(50000);
+            continue;
+        }
+
+        /* Verbose debug: log ALL raw RX */
+        printf("[*] RF RX raw (%zd bytes): ", n);
+        for (ssize_t i = 0; i < n && i < 40; i++) printf("%02X ", pkt[i]);
+        printf("\n");
+        fflush(stdout);
+
+        if (n == 7 && pkt[0] == 0x10 && pkt[2] == 0x41) {
+            bool link_lost = (pkt[4] & 0x40) != 0;
+            printf("[*] Remote RF Link Status: %s (slot=%d byte4=0x%02X byte5=0x%02X byte6=0x%02X)\n",
+                   link_lost ? "LOST" : "ESTABLISHED", pkt[1], pkt[4], pkt[5], pkt[6]);
+            fflush(stdout);
+        }
+
+        if (rf_is_valid_frame(pkt, (size_t)n)) {
+            rf_frame_t f;
+            memset(&f, 0, sizeof(f));
+            if (pkt[0] == 0x20 && n >= 32) {
+                if ((pkt[4] & 0xE0) == 0x40 || (pkt[4] & 0xE0) == 0x60) {
+                    f.report_id = 0x20;
+                    f.dev_slot = pkt[1] & 0x0F;
+                    f.sub_id = 0x12;
+                    f.seq = pkt[3];
+                    f.hdr_flag = pkt[4];
+                    f.msg_type = pkt[5];
+                    f.flags = pkt[6];
+                    memcpy(f.payload, &pkt[7], sizeof(f.payload));
+                } else {
+                    memcpy(&f, pkt, sizeof(f));
+                }
+            } else if (pkt[0] == 0x12 && n >= 30) {
+                if ((pkt[2] & 0xE0) == 0x40 || (pkt[2] & 0xE0) == 0x60) {
+                    f.report_id = 0x20;
+                    f.dev_slot = 0x01;
+                    f.sub_id = 0x12;
+                    f.seq = pkt[1];
+                    f.hdr_flag = pkt[2];
+                    f.msg_type = pkt[3];
+                    f.flags = pkt[4];
+                    memcpy(f.payload, &pkt[5], sizeof(f.payload));
+                } else {
+                    f.report_id = 0x20;
+                    f.dev_slot = 0x01;
+                    f.sub_id = 0x12;
+                    f.seq = pkt[1];
+                    f.hdr_flag = 0x40;
+                    f.msg_type = pkt[2];
+                    f.flags = pkt[3];
+                    memcpy(f.payload, &pkt[4], sizeof(f.payload));
+                }
+            }
+            printf("[*] RF RX -> Codex frame type=0x%02X seq=%d\n", f.msg_type, f.seq);
+            fflush(stdout);
+            handle_codex_frame_remote(&f);
         } else {
-            uint8_t pkt20[32] = {0};
-            pkt20[0] = 0x20;
-            pkt20[1] = 0x01;
-            pkt20[2] = 0xFD;
-            pkt20[3] = 0x01;
-            snprintf((char *)&pkt20[4], 27, "%s", act_id);
-            write(g_rf_fd, pkt20, sizeof(pkt20));
-
-            uint8_t pkt11[20] = {0};
-            pkt11[0] = 0x11;
-            pkt11[1] = 0x01;
-            pkt11[2] = 0xFD;
-            pkt11[3] = 0x01;
-            snprintf((char *)&pkt11[4], 15, "%s", act_id);
-            write(g_rf_fd, pkt11, sizeof(pkt11));
-
-            /* Also send Select on activity */
-            rf_send_button_event(0x0058, 1);
-            usleep(50000);
-            rf_send_button_event(0x0058, 0);
+            /* Not a Codex frame — check if it's a 0x42 container with embedded data */
+            if (n >= 32 && pkt[0] == 0x20 && pkt[2] == 0x42) {
+                printf("[*] RF RX eQuad container (0x42): parsing payload at offset 3\n");
+                /* The 0x42 container holds eQuad payload starting at byte 3 */
+                rf_frame_t f;
+                memset(&f, 0, sizeof(f));
+                f.report_id = 0x20;
+                f.dev_slot = pkt[1];
+                f.sub_id = 0x12;
+                if ((pkt[4] & 0xE0) == 0x40 || (pkt[4] & 0xE0) == 0x60) {
+                    f.seq = pkt[3];
+                    f.hdr_flag = pkt[4];
+                    f.msg_type = pkt[5];
+                    f.flags = pkt[6];
+                    memcpy(f.payload, &pkt[7], sizeof(f.payload));
+                } else {
+                    f.seq = pkt[3];
+                    f.msg_type = pkt[4];
+                    f.flags = pkt[5];
+                    memcpy(f.payload, &pkt[6], sizeof(f.payload));
+                }
+                /* Validate msg_type range */
+                if ((f.msg_type >= RF_MSG_ACTIVITY_SYNC && f.msg_type <= RF_MSG_CONFIG_END) ||
+                    (f.msg_type >= RF_MSG_BUTTON_PRESS && f.msg_type <= RF_MSG_SYNC_REQUEST) ||
+                    f.msg_type == RF_MSG_ACK || f.msg_type == RF_MSG_PING) {
+                    printf("[*] RF RX 0x42 -> Codex frame type=0x%02X seq=%d\n", f.msg_type, f.seq);
+                    fflush(stdout);
+                    handle_codex_frame_remote(&f);
+                }
+            }
+            /* Log as legacy for any non-Codex packet */
+            if (pkt[0] != 0x20 || pkt[2] != 0x42) {
+                printf("[*] Remote RF RX legacy (%zd bytes): ", n);
+                for (ssize_t i = 0; i < n; i++) printf("%02X ", pkt[i]);
+                printf("\n");
+                fflush(stdout);
+            }
         }
     }
+    return NULL;
 }
 
 /* Render Header Tab Bar */
@@ -628,18 +1132,23 @@ static void render_devices_view(void) {
     int start_y = 36;
     int card_h = 34;
     int spacing = 5;
+    int total = get_device_cmd_count();
 
-    for (int i = 0; i < DEVICE_CMD_COUNT && i < 7; i++) {
+    for (int i = 0; i < total && i < 7; i++) {
         int y = start_y + i * (card_h + spacing);
         bool is_sel = (i == g_selected_device_cmd);
         uint16_t bg = is_sel ? RGB_CARD_SEL : RGB_CARD;
 
+        char name[32] = {0}, cmd[32] = {0}, dev[32] = {0};
+        uint8_t atype = 1;
+        get_device_cmd_item(i, name, sizeof(name), cmd, sizeof(cmd), dev, sizeof(dev), &atype);
+
         fb_fill_rect(8, y, FB_WIDTH - 16, card_h, bg);
-        fb_draw_text(16, y + 10, g_device_commands[i].name, is_sel ? RGB_CYAN : RGB_TEXT_MUTED, bg, 1);
-        fb_draw_text(90, y + 10, g_device_commands[i].command, RGB_WHITE, bg, 1);
+        fb_draw_text(14, y + 10, name, is_sel ? RGB_CYAN : RGB_TEXT_MUTED, bg, 1);
+        fb_draw_text(105, y + 10, cmd, RGB_WHITE, bg, 1);
 
         if (is_sel) {
-            fb_draw_text(FB_WIDTH - 28, y + 10, "*", RGB_CYAN, bg, 1);
+            fb_draw_text(FB_WIDTH - 24, y + 10, ">", RGB_CYAN, bg, 1);
         }
     }
 }
@@ -771,11 +1280,21 @@ static void *gyro_watcher(void *arg) {
     return NULL;
 }
 
+static volatile sig_atomic_t g_wake_requested = 0;
+static void sig_wake_handler(int sig) {
+    (void)sig;
+    g_wake_requested = 1;
+}
+
 /* Power / Timeout Watcher Thread */
 static void *power_manager(void *arg) {
     (void)arg;
     while (g_running) {
-        sleep(1);
+        usleep(200000); /* 200ms check */
+        if (g_wake_requested) {
+            g_wake_requested = 0;
+            reset_idle_timer();
+        }
         if (g_timeout_seconds > 0 && g_screen_on) {
             time_t now = time(NULL);
             if (now - g_last_activity_time > g_timeout_seconds) {
@@ -789,12 +1308,17 @@ static void *power_manager(void *arg) {
 
 /* Handle Touchscreen tap at coordinates (x, y) */
 static void handle_screen_touch_tap(int x, int y) {
-    if (!g_touch_enabled) return;
     reset_idle_timer();
+    if (!g_screen_on) {
+        fb_set_blank(false);
+        render_screen();
+        return;
+    }
+    if (!g_touch_enabled) return;
     printf("[*] Touch tap: screen x=%d, y=%d\n", x, y);
 
-    /* Header Tab Area: y < 34 */
-    if (y < 34) {
+    /* Header Tab Area: y < 36 */
+    if (y < 36) {
         if (x < 80) g_current_view = VIEW_ACTIVITIES;
         else if (x < 160) g_current_view = VIEW_DEVICES;
         else g_current_view = VIEW_SETTINGS;
@@ -803,8 +1327,8 @@ static void handle_screen_touch_tap(int x, int y) {
         return;
     }
 
-    /* Capacitive touch buttons below LCD screen: y >= 235 */
-    if (y >= 235) {
+    /* Capacitive touch buttons below LCD screen (screen height is 320): y >= 320 */
+    if (y >= 320) {
         if (x < 120) {
             printf("[*] Capacitive tap: Activities (x=%d, y=%d)\n", x, y);
             g_current_view = VIEW_ACTIVITIES;
@@ -818,7 +1342,7 @@ static void handle_screen_touch_tap(int x, int y) {
     }
 
     /* Content Area */
-    int start_y = 36;
+    int start_y = 38;
     if (g_current_view == VIEW_ACTIVITIES) {
         int card_h = 38;
         int spacing = 6;
@@ -839,15 +1363,12 @@ static void handle_screen_touch_tap(int x, int y) {
     } else if (g_current_view == VIEW_DEVICES) {
         int card_h = 34;
         int spacing = 5;
-        for (int i = 0; i < DEVICE_CMD_COUNT && i < 7; i++) {
+        int total = get_device_cmd_count();
+        for (int i = 0; i < total && i < 7; i++) {
             int cy = start_y + i * (card_h + spacing);
             if (y >= cy && y < cy + card_h + spacing) {
                 g_selected_device_cmd = i;
-                const device_item_t *d = &g_device_commands[i];
-                printf("[*] Touch triggered Device Command: %s -> %s (0x%04X)\n", d->name, d->command, d->rf_code);
-                rf_send_button_event(d->rf_code, 1);
-                usleep(40000);
-                rf_send_button_event(d->rf_code, 0);
+                execute_device_cmd_item(i);
                 render_screen();
                 return;
             }
@@ -888,7 +1409,6 @@ static void handle_screen_touch_tap(int x, int y) {
 
 /* Navigation & Button Handling */
 static void handle_navigation_key(int code, int value) {
-    if (value != 1 && value != 2) return; /* Only on press/repeat */
     reset_idle_timer();
 
     /* Capacitive touch buttons below screen reported on event2 */
@@ -907,6 +1427,8 @@ static void handle_navigation_key(int code, int value) {
         return;
     }
 
+    if (value != 1 && value != 2) return; /* Only on press/repeat for navigation/physical keys */
+
     /* Menu button (code 139) or Info (code 358) toggles screen navigation mode */
     if (code == 139 || code == 358) {
         g_screen_nav_mode = !g_screen_nav_mode;
@@ -915,12 +1437,11 @@ static void handle_navigation_key(int code, int value) {
         return;
     }
 
-    /* If not in screen navigation mode, D-PAD, OK, Back, Menu pass directly to device over RF */
-    if (!g_screen_nav_mode) {
+    /* In Screen Navigation Mode OR on Devices/Settings view: D-PAD and OK navigate on-screen cards */
+    if (!g_screen_nav_mode && g_current_view != VIEW_DEVICES && g_current_view != VIEW_SETTINGS) {
         return;
     }
 
-    /* In Screen Navigation Mode: D-PAD navigates on-screen cards */
     switch (code) {
         case 103: /* KEY_UP (DirectionUp) */
             if (g_current_view == VIEW_ACTIVITIES) {
@@ -937,7 +1458,7 @@ static void handle_navigation_key(int code, int value) {
             if (g_current_view == VIEW_ACTIVITIES) {
                 if (g_selected_activity < g_activity_count - 1) g_selected_activity++;
             } else if (g_current_view == VIEW_DEVICES) {
-                if (g_selected_device_cmd < DEVICE_CMD_COUNT - 1) g_selected_device_cmd++;
+                if (g_selected_device_cmd < get_device_cmd_count() - 1) g_selected_device_cmd++;
             } else if (g_current_view == VIEW_SETTINGS) {
                 if (g_selected_setting < SETTING_COUNT - 1) g_selected_setting++;
             }
@@ -965,9 +1486,8 @@ static void handle_navigation_key(int code, int value) {
                 g_screen_nav_mode = false; /* Switch back to device control */
                 render_screen();
             } else if (g_current_view == VIEW_DEVICES) {
-                const device_item_t *d = &g_device_commands[g_selected_device_cmd];
-                printf("[*] Triggering Device Command: %s -> %s\n", d->name, d->command);
-                rf_send_button_event(0x0058, 1);
+                execute_device_cmd_item(g_selected_device_cmd);
+                render_screen();
             } else if (g_current_view == VIEW_SETTINGS) {
                 switch (g_selected_setting) {
                     case SETTING_TOUCH:
@@ -1003,12 +1523,42 @@ static void handle_navigation_key(int code, int value) {
     }
 }
 
+
+
+
+/* Find and open touchscreen device by probing device names */
+static int find_touchscreen_fd(void) {
+    const char *candidates[] = {
+        "/dev/input/event2",
+        "/dev/input/event3",
+        "/dev/input/touchscreen0",
+        "/dev/input/event1",
+        "/dev/input/event0"
+    };
+    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+        int fd = open(candidates[i], O_RDONLY | O_NONBLOCK);
+        if (fd >= 0) {
+            char name[128] = {0};
+            if (ioctl(fd, EVIOCGNAME(sizeof(name)), name) >= 0) {
+                if (strstr(name, "Clearpad") || strstr(name, "clearpad") ||
+                    strstr(name, "touch") || strstr(name, "Touch")) {
+                    printf("[+] Discovered touchscreen at %s: %s (fd=%d)\n", candidates[i], name, fd);
+                    return fd;
+                }
+            }
+            close(fd);
+        }
+    }
+    return open(TOUCH_EVENT_DEV, O_RDONLY | O_NONBLOCK);
+}
+
 int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
+    signal(SIGUSR1, sig_wake_handler);
 
     printf("[+] Starting Harmony Elite Custom Interface (codex_elite)...\n");
 
@@ -1050,11 +1600,11 @@ int main(int argc, char **argv) {
     reset_idle_timer();
 
     /* 2. Open Touch and Gyro nodes */
-    g_touch_fd = open(TOUCH_EVENT_DEV, O_RDONLY | O_NONBLOCK);
+    g_touch_fd = find_touchscreen_fd();
     if (g_touch_fd < 0) {
-        perror("[-] Failed to open " TOUCH_EVENT_DEV);
+        perror("[-] Failed to open touchscreen node");
     } else {
-        printf("[+] Opened %s (fd=%d) for touchscreen and capacitive keys\n", TOUCH_EVENT_DEV, g_touch_fd);
+        printf("[+] Opened touchscreen fd=%d\n", g_touch_fd);
     }
     if (g_touch_fd >= 0 && !g_touch_enabled) {
         set_touch_enabled(false);
@@ -1068,13 +1618,34 @@ int main(int argc, char **argv) {
     /* 3. Open RF SPI */
     g_rf_fd = open(RFSPI_DEV, O_RDWR);
     if (g_rf_fd >= 0) {
-        printf("[+] Opened %s for RF TX\n", RFSPI_DEV);
+        printf("[+] Opened %s for RF TX/RX\n", RFSPI_DEV);
+        /* 1. Init message engine (matches stock hal_remote) */
         uint8_t pkt_init[7] = {0x10, 0xFF, 0x80, 0x00, 0x00, 0x01, 0x00};
-        write(g_rf_fd, pkt_init, sizeof(pkt_init));
+        if (write(g_rf_fd, pkt_init, sizeof(pkt_init)) < 0) {}
         usleep(30000);
-        uint8_t close_pkt[7] = {0x10, 0xFF, 0x80, 0xB2, 0x02, 0x00, 0x00};
-        write(g_rf_fd, close_pkt, sizeof(close_pkt));
+
+        /* 2. Enable extended frames (matches stock hal_remote libhal_rf_hid_write) */
+        uint8_t pkt_ext[7] = {0x10, 0xFF, 0x80, 0xFD, 0x01, 0x00, 0x00};
+        if (write(g_rf_fd, pkt_ext, sizeof(pkt_ext)) < 0) {}
         usleep(30000);
+
+        /* 3. Query paired Hub address (pipe 0x03) */
+        uint8_t pkt_pipe[7] = {0x10, 0xFF, 0x83, 0xB5, 0x03, 0x00, 0x00};
+        if (write(g_rf_fd, pkt_pipe, sizeof(pkt_pipe)) < 0) {}
+        usleep(30000);
+
+        /* 4. Set CC2544 active power mode (matches stock hal_remote hot_set_powermode) */
+        uint8_t pkt_power[7] = {0x20, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00};
+        if (write(g_rf_fd, pkt_power, sizeof(pkt_power)) < 0) {}
+        usleep(30000);
+
+        /* 5. Send Connection Packet (10 bytes) to synchronize frequency hopping with Hub */
+        uint8_t pkt_conn[10] = {0x12, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        if (write(g_rf_fd, pkt_conn, sizeof(pkt_conn)) < 0) {}
+        usleep(50000);
+
+        /* Load cached config */
+        load_rf_config();
     }
 
     /* 4. Open Physical Buttons */
@@ -1086,15 +1657,18 @@ int main(int argc, char **argv) {
     printf("[+] Listening on %s for physical buttons...\n", BTN_EVENT_DEV);
 
     /* Background Threads */
-    pthread_t th_power, th_gyro, th_repeat;
+    pthread_t th_power, th_gyro, th_repeat, th_rf_rx;
     pthread_create(&th_power, NULL, power_manager, NULL);
     pthread_create(&th_gyro, NULL, gyro_watcher, NULL);
     pthread_create(&th_repeat, NULL, key_repeat_thread, NULL);
+    pthread_create(&th_rf_rx, NULL, rf_rx_worker, NULL);
+
+
 
     /* Initial Render */
     render_screen();
 
-    /* Event Loop with select() multiplexing buttons and touchscreen */
+    /* Event Loop with select() multiplexing physical buttons and touchscreen */
     while (g_running) {
         fd_set rfds;
         FD_ZERO(&rfds);
@@ -1133,12 +1707,13 @@ int main(int argc, char **argv) {
                         continue;
                     }
 
-                    if (g_screen_nav_mode) {
+                    if (g_screen_nav_mode || g_current_view == VIEW_DEVICES || g_current_view == VIEW_SETTINGS) {
                         /* Screen Navigation Mode: D-Pad and OK navigate and select on screen */
                         handle_navigation_key(ev.code, ev.value);
 
-                        /* Non-nav buttons (Volume, Transport) still send RF */
-                        if (ev.code == 115 || ev.code == 114 || ev.code == 113) {
+                        /* Non-nav buttons (Volume, Channel, Transport, HA) still send RF */
+                        if (ev.code != 103 && ev.code != 108 && ev.code != 105 && ev.code != 106 &&
+                            ev.code != 352 && ev.code != 28 && ev.code != 139) {
                             uint16_t rf_code = linux_to_harmony_rf_key(ev.code);
                             if (rf_code != 0) {
                                 if (ev.value == 1) {

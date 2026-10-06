@@ -70,13 +70,19 @@ fi
 
 # 6. Unified Codex Daemon (WebUI on 8080, Orchestrator/WS/MQTT on 8089)
 (
+  _delay=5
   while true; do
     if [ -x /data/codex/bin/codex_daemon ]; then
       if ! pidof codex_daemon >/dev/null 2>&1; then
         echo "$(date) Starting codex_daemon..." >> "$LOG"
         /data/codex/bin/codex_daemon 8089 >> "$LOG" 2>&1
+        echo "$(date) codex_daemon exited, retry in ${_delay}s" >> "$LOG"
+        sleep "$_delay"
+        [ "$_delay" -lt 60 ] && _delay=$(expr "$_delay" + "$_delay")
+        continue
       fi
     fi
+    _delay=5
     sleep 5
   done
 ) &
@@ -94,27 +100,39 @@ rm -f /data/codex/bin/codex_bthid_remote /data/codex/bin/codex_bthid_keyboard 2>
     sleep 1
   done
 
+  _delay=5
   while true; do
     if [ -x /data/codex/bin/codex_btstack ]; then
       if ! pidof codex_btstack >/dev/null 2>&1; then
         hciconfig hci0 up 2>/dev/null || true
         echo "$(date) Starting BTstack backend..." >> "$LOG"
         /data/codex/bin/codex_btstack >> "$LOG" 2>&1
+        echo "$(date) codex_btstack exited, retry in ${_delay}s" >> "$LOG"
+        sleep "$_delay"
+        [ "$_delay" -lt 60 ] && _delay=$(expr "$_delay" + "$_delay")
+        continue
       fi
     fi
+    _delay=5
     sleep 5
   done
 ) &
 
 # 8. CC2544 RF Daemon (Logitech HAL replacement for Elite Remote RF)
 (
+  _delay=5
   while true; do
     if [ -x /data/codex/bin/codex_rf ]; then
       if ! pidof codex_rf >/dev/null 2>&1; then
         echo "$(date) Starting codex_rf daemon..." >> "$LOG"
         /data/codex/bin/codex_rf >> "$LOG" 2>&1
+        echo "$(date) codex_rf exited, retry in ${_delay}s" >> "$LOG"
+        sleep "$_delay"
+        [ "$_delay" -lt 60 ] && _delay=$(expr "$_delay" + "$_delay")
+        continue
       fi
     fi
+    _delay=5
     sleep 5
   done
 ) &
