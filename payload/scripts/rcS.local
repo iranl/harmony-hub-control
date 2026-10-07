@@ -1,13 +1,55 @@
 #!/bin/sh
 
+sync_fs() {
+	sync 2>/dev/null || /data/codex/bin/codex_sync 2>/dev/null || /data/codex/bin/sync 2>/dev/null || true
+}
+
 # 0. Neuter watchdog and luaworks immediately
 touch /etc/nowatchdog 2>/dev/null || true
 chmod -x /usr/bin/watchdog /opt/luaworks/luaworks 2>/dev/null || true
 killall -9 watchdog 2>/dev/null || true
 
+# 1. Reboot counter emergency check
+COUNT=0
+if [ -f /data/codex/reboot_counter ]; then
+	COUNT=$(cat /data/codex/reboot_counter 2>/dev/null || echo 0)
+fi
+COUNT=$(expr "$COUNT" + 1 2>/dev/null || echo 1)
+echo "$COUNT" > /data/codex/reboot_counter
+sync_fs
 
+# 2. 5-minute stability timer in background
+(
+	sleep 300
+	echo 0 > /data/codex/reboot_counter
+	sync_fs
+	echo "$(date) Hub uptime > 5m achieved, reboot counter reset" >> /tmp/boot_stability.log
+) &
 
-# Start core services and Dropbear SSH immediately
+# 3. Emergency recovery condition (>5 consecutive unverified boots)
+if [ "$COUNT" -gt 5 ]; then
+	echo "$(date) EMERGENCY RECOVERY MODE: $COUNT failed boots. WiFi and Dropbear SSH only." > /tmp/emergency_recovery.log
+
+	# Initialize WLAN, wpa_supplicant, and background DHCP
+	load_modules /etc/modules.wlan 2>/dev/null || true
+	/sbin/wlanconfig ath0 create wlandev wifi0 wlanmode sta 2>/dev/null || true
+	/usr/sbin/wpa_supplicant -s -iath0 -c /etc/wpa_supplicant.conf &
+	udhcpc -i ath0 -b 2>/dev/null &
+
+	# Start Dropbear SSH
+	if [ -x /data/codex/bin/dropbear ]; then
+		echo '#!/bin/sh' > /usr/sbin/dropbear
+		echo 'exec /data/codex/bin/dropbear -K 300 "$@"' >> /usr/sbin/dropbear
+		chmod 755 /usr/sbin/dropbear
+		/usr/sbin/dropbear
+	elif [ -x /usr/sbin/dropbear ]; then
+		/usr/sbin/dropbear
+	fi
+
+	exit 0
+fi
+
+# 4. Normal Boot: start core services and Dropbear SSH immediately
 if [ -x /data/codex/init.sh ]; then
 	/data/codex/init.sh &
 fi
@@ -21,7 +63,8 @@ udhcpc -i ath0 -b 2>/dev/null &
 # Kernel overcommit
 echo 1 > /proc/sys/vm/overcommit_memory
 
-# Hardware version & Bluetooth (backgrounded so it never hangs or aborts boot)
+# Hardware version & Bluetooth (skip if Bluetooth disabled)
+if [ ! -f /data/codex/bt_disabled.conf ]; then
 (
 	MFG_DATA=/dev/$(grep mfg /proc/mtd | cut -d: -f1)
 	HW_VERSION=$(sed -n '/hw_ver/{N N N N s/^[^0-9]*\([0-9][0-9]\)/\1/p}' $MFG_DATA 2>/dev/null)
@@ -51,3 +94,6 @@ echo 1 > /proc/sys/vm/overcommit_memory
 	/usr/sbin/hciconfig hci0 up 2>/dev/null
 	/usr/sbin/hciconfig hci0 sspmode 1 2>/dev/null
 ) &
+else
+	echo "$(date) Bluetooth disabled in config, skipping hardware init" >> /tmp/codex-boot.log
+fi

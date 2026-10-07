@@ -91,7 +91,10 @@ build_elite() {
     echo "[-] Building codex_elite (ARM)..."
     mkdir -p "$REPO_ROOT/elite/bin"
     arm-linux-gnueabi-gcc -static -Os -s -Wall -Ipayload/source payload/source/codex_elite.c payload/source/cJSON.c -o "$REPO_ROOT/elite/bin/codex_elite" -lpthread -lm
+    echo "[-] Building codex_sync (ARM)..."
+    arm-linux-gnueabi-gcc -static -Os -s -o "$REPO_ROOT/elite/bin/codex_sync" payload/source/codex_sync.c
 }
+
 
 case "$TARGET" in
     elite)

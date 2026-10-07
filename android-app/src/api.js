@@ -249,15 +249,24 @@ export class HarmonyClient {
     });
   }
 
-  async sendBtKey(code, action = 'tap') {
-    return this.postJson('/api/bt-key', { code, action });
-  }
-
-  async sendBtText(text) {
-    if (this.sendWs({ action: 'bt_text', text: String(text) })) {
+  async sendBtKey(code, action = 'tap', target = '') {
+    if (!code) return { ok: false };
+    if (this.sendWs({ action: 'bt_key', key: String(code), keyAction: String(action), target: String(target) })) {
       return { ok: true, ws: true };
     }
-    return this.postJson('/api/bt-text', { text: String(text) });
+    return this.postJson('/api/bt-key', {
+      key: String(code),
+      code: String(code),
+      action: String(action),
+      target: String(target)
+    });
+  }
+
+  async sendBtText(text, target = '') {
+    if (this.sendWs({ action: 'bt_text', text: String(text), target: String(target) })) {
+      return { ok: true, ws: true };
+    }
+    return this.postJson('/api/bt-text', { text: String(text), target: String(target) });
   }
 
   async runBtScript(script, delay = 35) {
@@ -311,6 +320,31 @@ export class HarmonyClient {
 
   async saveUiRemoteLayout(layouts) {
     return this.postJson('/api/ui-remote-layout', layouts);
+  }
+
+  /* Harmony Elite RF Remote & Mapping */
+  async getEliteMapping() {
+    return this.request('/api/elite-mapping');
+  }
+
+  async saveEliteMapping(data) {
+    return this.postJson('/api/elite-mapping-save', data);
+  }
+
+  async getRfStatus() {
+    return this.request('/api/rf/status');
+  }
+
+  async pairRfRemote() {
+    return this.request('/api/rf/pair', { method: 'POST' });
+  }
+
+  async stopPairRfRemote() {
+    return this.request('/api/rf/stop-pair', { method: 'POST' });
+  }
+
+  async unpairRfRemote() {
+    return this.request('/api/rf/unpair', { method: 'POST' });
   }
 
   async scanBtRemote() {

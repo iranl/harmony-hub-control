@@ -764,8 +764,9 @@ void handle_system(int fd, const struct request *req) {
     char action[64];
     form_value(req->body, "action", action, sizeof(action));
     if (strcmp(action, "reboot") == 0) {
+        unlink(REBOOT_COUNTER_FILE);
         render_page(fd, req, "Rebooting now.");
-        sync();
+        system("sync 2>/dev/null || /data/codex/bin/codex_sync 2>/dev/null || true");
         system("/sbin/reboot >/dev/null 2>&1 &");
     } else if (strcmp(action, "auth") == 0) {
         struct webui_auth_config old, cfg;
@@ -812,6 +813,41 @@ void handle_system(int fd, const struct request *req) {
             { int pfd = open("/proc/sys/kernel/printk", O_WRONLY); if (pfd >= 0) { write(pfd, "3 4 1 7\n", 8); close(pfd); } }
             render_page(fd, req, "Verbose debug logging disabled.");
         }
+    } else if (strcmp(action, "radio_toggles") == 0) {
+        int bt_on = form_checked(req->body, "btEnabled");
+        int rf_on = form_checked(req->body, "rfEnabled");
+        if (!bt_on) {
+            FILE *f = fopen(BT_DISABLED_CONFIG, "w");
+            if (f) { fprintf(f, "1\n"); fclose(f); }
+            system("killall -9 codex_btstack 2>/dev/null; hciconfig hci0 down 2>/dev/null || true");
+        } else {
+            unlink(BT_DISABLED_CONFIG);
+            system("hciconfig hci0 up 2>/dev/null || true");
+        }
+        if (!rf_on) {
+            FILE *f = fopen(RF_DISABLED_CONFIG, "w");
+            if (f) { fprintf(f, "1\n"); fclose(f); }
+            system("killall -9 codex_rf 2>/dev/null || true");
+        } else {
+            unlink(RF_DISABLED_CONFIG);
+        }
+        render_page(fd, req, "Radio and hardware settings saved.");
+    } else if (strcmp(action, "enable_radio") == 0) {
+        char radio[32];
+        form_value(req->body, "radio", radio, sizeof(radio));
+        if (strcmp(radio, "bluetooth") == 0 || strcmp(radio, "bt") == 0) {
+            unlink(BT_DISABLED_CONFIG);
+            system("hciconfig hci0 up 2>/dev/null || true");
+            render_page(fd, req, "Bluetooth re-enabled. BTstack backend starting.");
+        } else if (strcmp(radio, "rf") == 0) {
+            unlink(RF_DISABLED_CONFIG);
+            render_page(fd, req, "Harmony Elite RF re-enabled. Codex RF daemon starting.");
+        } else {
+            render_page(fd, req, "Unknown radio target.");
+        }
+    } else if (strcmp(action, "reset_reboot_counter") == 0) {
+        unlink(REBOOT_COUNTER_FILE);
+        render_page(fd, req, "Reboot panic counter reset to 0.");
     } else {
         render_page(fd, req, "Unknown system action.");
     }

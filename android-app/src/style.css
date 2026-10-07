@@ -1588,10 +1588,11 @@ pre {
   width: 100%;
   display: flex;
   justify-content: center;
-  background: linear-gradient(180deg, #181d24, #0e1117);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-md);
-  padding: 14px;
+  background: radial-gradient(circle at 50% 20%, #1e2530 0%, #10141a 70%, #0a0c10 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08), 0 12px 32px rgba(0, 0, 0, 0.6);
+  border-radius: var(--radius-lg);
+  padding: 16px;
 }
 .b25-remote-skin {
   position: relative;
@@ -1603,33 +1604,111 @@ pre {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  border-radius: 20px;
+  border-radius: 22px;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.5));
 }
 .b25-hotspot {
   position: absolute;
   padding: 0;
   margin: 0;
-  border: 1.5px solid rgba(0, 229, 192, 0.4);
+  border: 1.5px solid rgba(0, 229, 192, 0.45);
   background: rgba(0, 229, 192, 0.08);
   border-radius: 999px;
   cursor: pointer;
-  transition: all 0.1s ease;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  box-sizing: border-box;
 }
-.b25-hotspot:hover {
+.b25-hotspot:hover, .b25-hotspot:active {
   border-color: var(--accent);
   background: rgba(0, 229, 192, 0.35);
-  box-shadow: 0 0 8px var(--accent-glow);
+  box-shadow: 0 0 10px var(--accent-glow);
 }
 .b25-hotspot.selected {
   border-color: var(--warning) !important;
-  background: rgba(255, 209, 102, 0.4) !important;
-  box-shadow: 0 0 10px rgba(255, 209, 102, 0.7) !important;
+  background: rgba(255, 209, 102, 0.45) !important;
+  box-shadow: 0 0 14px rgba(255, 209, 102, 0.8) !important;
 }
 .b25-hotspot.mapped {
   border-color: var(--success);
-  background: rgba(6, 214, 160, 0.25);
+  background: rgba(6, 214, 160, 0.26);
 }
 .b25-hotspot.rect {
   border-radius: 4px;
+}
+
+/* Harmony Elite RF Remote Visual */
+.elite-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 768px) {
+  .elite-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.elite-remote-shell {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 15%, #222933 0%, #12161e 65%, #090c10 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08), 0 12px 32px rgba(0, 0, 0, 0.6);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+}
+.elite-remote-skin {
+  position: relative;
+  width: min(100%, 260px);
+  aspect-ratio: 340/1229;
+}
+.elite-remote-skin img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 28px;
+  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.6));
+}
+.elite-hotspot {
+  position: absolute;
+  padding: 0;
+  margin: 0;
+  border: 1.5px solid rgba(0, 229, 192, 0.45);
+  background: rgba(0, 229, 192, 0.08);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  box-sizing: border-box;
+}
+.elite-hotspot:hover, .elite-hotspot:active {
+  border-color: var(--accent);
+  background: rgba(0, 229, 192, 0.35);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+.elite-hotspot.selected {
+  border-color: var(--warning) !important;
+  background: rgba(255, 209, 102, 0.45) !important;
+  box-shadow: 0 0 14px rgba(255, 209, 102, 0.8) !important;
+}
+.elite-hotspot.mapped {
+  border-color: var(--success);
+  background: rgba(6, 214, 160, 0.26);
+}
+.elite-hotspot.rect {
+  border-radius: 6px;
+}
+
+/* Polished tactile feel for buttons across app */
+.btn {
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.kb-key:active {
+  transform: scale(0.93);
+  filter: brightness(1.2);
 }
 

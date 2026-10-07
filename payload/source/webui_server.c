@@ -346,6 +346,22 @@ static void handle_client(int client) {
         render_ir_lab_clear_json(client, &req);
     } else if (strcmp(req.method, "GET") == 0 && strcmp(req.path, "/api/bt-status") == 0) {
         render_bt_status_json(client);
+    } else if (strcmp(req.method, "POST") == 0 && (
+        strcmp(req.path, "/api/bt-pairing") == 0 ||
+        strcmp(req.path, "/api/bt-connect") == 0 ||
+        strcmp(req.path, "/api/bt-disconnect") == 0 ||
+        strcmp(req.path, "/api/bt-key") == 0 ||
+        strcmp(req.path, "/api/bt-script") == 0 ||
+        strcmp(req.path, "/api/bt-call") == 0 ||
+        strcmp(req.path, "/api/bt-text") == 0 ||
+        strcmp(req.path, "/api/remote-scan") == 0 ||
+        strcmp(req.path, "/api/remote-pair") == 0
+    ) && access(BT_DISABLED_CONFIG, F_OK) == 0) {
+        cJSON *err = cJSON_CreateObject();
+        cJSON_AddBoolToObject(err, "ok", 0);
+        cJSON_AddStringToObject(err, "error", "Bluetooth is disabled in System settings");
+        send_cjson_resp(client, "503 Service Unavailable", err);
+        cJSON_Delete(err);
     } else if (strcmp(req.method, "POST") == 0 && strcmp(req.path, "/api/bt-key") == 0) {
         render_bt_key_json(client, &req);
     } else if (strcmp(req.method, "POST") == 0 && strcmp(req.path, "/api/bt-pairing") == 0) {
@@ -389,6 +405,15 @@ static void handle_client(int client) {
     } else if (strcmp(req.method, "GET") == 0 && strcmp(req.path, "/api/remote-pair-status") == 0) {
         render_remote_pair_status_json(client);
     } else if (strncmp(req.path, "/api/rf", 7) == 0) {
+        if (access(RF_DISABLED_CONFIG, F_OK) == 0) {
+            cJSON *err = cJSON_CreateObject();
+            cJSON_AddBoolToObject(err, "ok", 0);
+            cJSON_AddStringToObject(err, "error", "Harmony Elite RF is disabled in System settings");
+            send_cjson_resp(client, "503 Service Unavailable", err);
+            cJSON_Delete(err);
+            free_request(&req);
+            return;
+        }
         int rfsock = socket(AF_INET, SOCK_STREAM, 0);
         if (rfsock >= 0) {
             struct sockaddr_in sin;

@@ -30,19 +30,38 @@ static void page_head(FILE *f, const char *title) {
         ".setup-shell{padding:0;overflow:hidden}.wizard-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line);background:#fff}.wizard-top h3{margin:0}.wizard-grid{display:grid;grid-template-columns:210px 1fr;min-height:420px}.stepper{border-right:1px solid var(--line);background:#f8fbfa;padding:12px;display:grid;align-content:start;gap:6px}.step{display:grid;grid-template-columns:28px 1fr;gap:9px;align-items:center;width:100%;text-align:left;background:transparent;color:var(--fg);border-color:transparent;padding:10px}.step span{width:26px;height:26px;border-radius:999px;display:grid;place-items:center;background:#fff;border:1px solid var(--line);color:var(--accent);font-weight:750}.step.active{background:#fff;border-color:var(--line);box-shadow:0 1px 2px rgba(20,40,32,.04)}.wizard-body{padding:18px;min-width:0;max-width:100%}.wizard-panel{display:none;min-width:0;max-width:100%}.wizard-panel.active{display:block}.wizard-status{min-height:20px;margin-top:10px;color:var(--muted)}.device-sync{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}.guide-steps{display:grid;gap:8px;margin:10px 0 12px}.guide-step{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start;border:1px solid var(--line);background:var(--wash);border-radius:8px;padding:9px 10px}.guide-step>*{min-width:0}.guide-step b{width:22px;height:22px;border-radius:999px;background:var(--soft2);color:var(--accent);display:grid;place-items:center;font-size:12px}"
         ".lab-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(320px,.95fr);gap:14px;min-width:0}.lab-layout>*{min-width:0}.bt-layout{display:grid;grid-template-columns:1fr;gap:16px;min-width:0}.bt-left-col,.bt-right-col{display:grid;gap:14px;min-width:0}.bt-script-layout{display:grid;grid-template-columns:1fr;gap:12px;min-width:0}.bt-script-tools{display:grid;gap:8px;align-content:start;min-width:0}.lab-toolbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.lab-quick{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin:10px 0 12px}.lab-quick button{text-align:left;min-height:50px;background:#fff;color:var(--accent);border-color:var(--accent)}.lab-quick button:hover{background:#f8fbfa;border-color:#0b625c}.lab-quick button .queue-meta{color:var(--muted);font-weight:600}.lab-presets,.queue-tools{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.lab-presets button,.queue-tools button{padding:6px 9px;font-size:12px}.lab-advanced{margin-top:12px}.inline-check{display:inline-flex;align-items:center;gap:8px;margin-top:10px}.lab-summary{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--wash);padding:9px 10px;margin:8px 0;color:var(--muted);font-size:12px}.queue-list{display:grid;gap:7px;max-height:390px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--soft);padding:8px}.queue-row{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:start;background:#fff;border:1px solid var(--line);border-radius:7px;padding:8px}.queue-row strong{display:block}.queue-meta{color:var(--muted);font-size:11px;overflow-wrap:anywhere}.meter{height:8px;border-radius:999px;background:#e7eeec;overflow:hidden}.meter span{display:block;height:100%;width:0;background:var(--accent)}button:disabled{opacity:.55;cursor:not-allowed;transform:none}.kb-panel{width:100%;max-width:100%;min-width:0;margin-top:0;overflow-x:auto;overflow-y:hidden;padding-bottom:4px;-webkit-overflow-scrolling:touch}.kb-row{display:flex;gap:3px;margin-bottom:3px;justify-content:flex-start;min-width:max-content}.kb-key{min-width:36px;height:38px;padding:0 6px;border:1px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .06s,color .06s;color:var(--fg)}.kb-key:hover{background:var(--soft);border-color:var(--accent)}.kb-key.kb-on{background:var(--accent);color:#fff;border-color:var(--accent)}.kb-125{min-width:48px}.kb-15{min-width:54px}.kb-2{min-width:72px}.kb-225{min-width:82px}.kb-25{min-width:90px}.kb-275{min-width:100px}.kb-sp{min-width:200px;max-width:200px;width:200px}.kb-fwd{margin-bottom:8px}"
         ".b25-layout{display:grid;grid-template-columns:minmax(260px,320px) minmax(0,1fr);gap:18px;align-items:start;min-width:0}.b25-layout>*{min-width:0}.b25-remote-shell{width:100%;display:grid;place-items:center;background:linear-gradient(180deg,#1c2321,#121816);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px}.b25-remote-skin{position:relative;width:min(100%,230px);aspect-ratio:191/898}.b25-remote-skin img{display:block;width:100%;height:100%;object-fit:contain;border-radius:24px;box-shadow:0 18px 40px rgba(0,0,0,.5)}.b25-hotspot{position:absolute;padding:0;margin:0;border:1.5px solid rgba(0,255,180,.35);background:rgba(0,255,180,.08);border-radius:999px;cursor:pointer;transition:all .1s ease;box-sizing:border-box}.b25-hotspot:hover{border-color:#00ffb4;background:rgba(0,255,180,.35);box-shadow:0 0 10px rgba(0,255,180,.5)}.b25-hotspot.selected{border-color:#ffb703;background:rgba(255,183,3,.35);box-shadow:0 0 12px rgba(255,183,3,.7)}.b25-hotspot.mapped{border-color:#06d6a0;background:rgba(6,214,160,.24)}.b25-hotspot.rect{border-radius:6px}"
-        ".elite-layout{display:grid;grid-template-columns:minmax(280px,360px) minmax(0,1fr);gap:18px;align-items:start;min-width:0}.elite-layout>*{min-width:0}.elite-remote-shell{width:100%;display:grid;place-items:center;background:linear-gradient(180deg,#1c2321,#121816);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px}.elite-remote-skin{position:relative;width:min(100%,300px);aspect-ratio:9/16}.elite-remote-skin img{display:block;width:100%;height:100%;object-fit:contain;border-radius:28px;box-shadow:0 18px 40px rgba(0,0,0,.5)}.elite-hotspot{position:absolute;padding:0;margin:0;border:1.5px solid rgba(0,255,180,.35);background:rgba(0,255,180,.08);border-radius:999px;cursor:pointer;transition:all .1s ease;box-sizing:border-box}.elite-hotspot:hover{border-color:#00ffb4;background:rgba(0,255,180,.35);box-shadow:0 0 10px rgba(0,255,180,.5)}.elite-hotspot.selected{border-color:#ffb703;background:rgba(255,183,3,.35);box-shadow:0 0 12px rgba(255,183,3,.7)}.elite-hotspot.mapped{border-color:#06d6a0;background:rgba(6,214,160,.24)}.elite-hotspot.rect{border-radius:6px}"
+        ".elite-layout{display:grid;grid-template-columns:minmax(280px,360px) minmax(0,1fr);gap:18px;align-items:start;min-width:0}.elite-layout>*{min-width:0}.elite-remote-shell{width:100%;display:grid;place-items:center;background:linear-gradient(180deg,#1c2321,#121816);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px}.elite-remote-skin{position:relative;width:min(100%,300px);aspect-ratio:340/1229}.elite-remote-skin img{display:block;width:100%;height:100%;object-fit:contain;border-radius:28px;box-shadow:0 18px 40px rgba(0,0,0,.5)}.elite-hotspot{position:absolute;padding:0;margin:0;border:1.5px solid rgba(0,255,180,.35);background:rgba(0,255,180,.08);border-radius:999px;cursor:pointer;transition:all .1s ease;box-sizing:border-box}.elite-hotspot:hover{border-color:#00ffb4;background:rgba(0,255,180,.35);box-shadow:0 0 10px rgba(0,255,180,.5)}.elite-hotspot.selected{border-color:#ffb703;background:rgba(255,183,3,.35);box-shadow:0 0 12px rgba(255,183,3,.7)}.elite-hotspot.mapped{border-color:#06d6a0;background:rgba(6,214,160,.24)}.elite-hotspot.rect{border-radius:6px}"
         "@media(max-width:980px){.ir-stored-layout,.ir-control-layout,.b25-layout,.elite-layout,.vremote-stage.editing{grid-template-columns:minmax(0,1fr)}.ir-remote-skin{width:min(100%,250px)}}"
         "@media(max-width:860px){header{padding:12px 14px}.topbar{max-width:none;width:100%}.app-shell{width:100%;max-width:100%;grid-template-columns:minmax(0,1fr);padding:14px;gap:16px}.side-menu{position:sticky;top:62px;z-index:2;display:flex;max-width:100%;overflow-x:auto;gap:6px;border-radius:10px;box-shadow:0 4px 16px rgba(25,41,37,.06);scrollbar-width:thin}.menu-item{min-width:168px}.row,.wizard-grid,.device-sync,.lab-layout,.bt-layout,.bt-script-layout{grid-template-columns:minmax(0,1fr)}.kv{grid-template-columns:1fr}.command,.ir-command-row{grid-template-columns:1fr}.stepper{border-right:0;border-bottom:1px solid var(--line);grid-template-columns:repeat(2,1fr)}}"
         "@media(max-width:520px){body{font-size:13px}header{position:static;padding:10px}.topbar{align-items:flex-start;flex-direction:column;gap:8px}.brand-mark{width:30px;height:30px}.brand h1{font-size:16px}.top-status{justify-content:flex-start}.app-shell{padding:10px;gap:14px}.side-menu{position:static;display:grid;grid-template-columns:minmax(0,1fr);gap:7px;padding:7px}.menu-item{min-width:0;min-height:46px;padding:8px;grid-template-columns:28px 1fr}.menu-item span:first-child{width:24px;height:24px}.menu-item strong{font-size:12px}.menu-item small{font-size:10px}.section-head,.ir-work-head{align-items:flex-start;flex-direction:column}.panel,.stat,.wizard-body{padding:14px}.grid,.cards,.quick-actions,.lab-toolbar,.lab-quick{grid-template-columns:minmax(0,1fr)}.guide-step{grid-template-columns:24px 1fr;padding:8px}.actions button,.actions a.button{width:100%}.ir-quick-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.ir-remote-shell{padding:8px}.ir-remote-skin{width:min(100%,230px)}.kb-panel{margin-left:-2px;margin-right:-2px}.kb-key{min-width:32px;height:36px;font-size:11px}.kb-15{min-width:48px}.kb-2{min-width:64px}.kb-225{min-width:74px}.kb-sp{min-width:150px}}"
         "@media(max-width:420px){.side-menu{grid-template-columns:minmax(0,1fr)}.menu-item{min-height:46px}}"
         "</style></head><body>",
         f);
+    int bt_off = (access(BT_DISABLED_CONFIG, F_OK) == 0);
+    int rf_off = (access(RF_DISABLED_CONFIG, F_OK) == 0);
     fprintf(f,
-        "<header><div class='topbar'><div class='brand'><div class='brand-mark'>H</div><div><h1>Harmony Hub Control</h1><small>Local smart home console</small></div></div><div class='top-status'><span class='pill'>Local control</span></div></div></header><main class='app-shell'><aside class='side-menu' aria-label='Main menu'><button type='button' class='menu-item active' data-view-target='overview'><span>D</span><div><strong>Dashboard</strong><small>Status</small></div></button><button type='button' class='menu-item' data-view-target='activities'><span>A</span><div><strong>Activities</strong><small>Run & setup</small></div></button><button type='button' class='menu-item' data-view-target='control'><span>R</span><div><strong>Control</strong><small>Send buttons</small></div></button><button type='button' class='menu-item' data-view-target='ir'><span>IR</span><div><strong>IR Setup</strong><small>Add remotes</small></div></button><button type='button' class='menu-item' data-view-target='lab'><span>L</span><div><strong>Bulk IR Test</strong><small>Queue IR codes</small></div></button><button type='button' class='menu-item' data-view-target='bluetooth'><span>BT</span><div><strong>Bluetooth</strong><small>Keyboard</small></div></button><button type='button' class='menu-item' data-view-target='rf-remote'><span>EL</span><div><strong>Harmony Elite</strong><small>RF Remote & Screen</small></div></button><button type='button' class='menu-item' data-view-target='remotes'><span>BT</span><div><strong>Bluetooth Remote</strong><small>Homatics BLE</small></div></button><button type='button' class='menu-item' data-view-target='mqtt'><span>M</span><div><strong>MQTT</strong><small>Home Assistant</small></div></button><button type='button' class='menu-item' data-view-target='network'><span>N</span><div><strong>Network</strong><small>Wi-Fi & Ethernet</small></div></button><button type='button' class='menu-item' data-view-target='backup'><span>B</span><div><strong>Backup</strong><small>Import/export</small></div></button><button type='button' class='menu-item' data-view-target='system'><span>S</span><div><strong>System</strong><small>Logs/update</small></div></button></aside><div class='content'>");
+        "<header><div class='topbar'><div class='brand'><div class='brand-mark'>H</div><div><h1>Harmony Hub Control</h1><small>Local smart home console</small></div></div><div class='top-status'><span class='pill'>Local control</span></div></div></header><main class='app-shell'><aside class='side-menu' aria-label='Main menu'>"
+        "<button type='button' class='menu-item active' data-view-target='overview'><span>D</span><div><strong>Dashboard</strong><small>Status</small></div></button>"
+        "<button type='button' class='menu-item' data-view-target='activities'><span>A</span><div><strong>Activities</strong><small>Run & setup</small></div></button>"
+        "<button type='button' class='menu-item' data-view-target='control'><span>R</span><div><strong>Control</strong><small>Send buttons</small></div></button>"
+        "<button type='button' class='menu-item' data-view-target='ir'><span>IR</span><div><strong>IR Setup</strong><small>Add remotes</small></div></button>"
+        "<button type='button' class='menu-item' data-view-target='lab'><span>L</span><div><strong>Bulk IR Test</strong><small>Queue IR codes</small></div></button>"
+        "<button type='button' class='menu-item' data-view-target='bluetooth'><span>BT</span><div><strong>Bluetooth</strong><small>%s</small></div></button>"
+        "<button type='button' class='menu-item' data-view-target='rf-remote'><span>EL</span><div><strong>Harmony Elite</strong><small>%s</small></div></button>"
+        "<button type='button' class='menu-item' data-view-target='remotes'><span>BT</span><div><strong>Bluetooth Remote</strong><small>%s</small></div></button>"
+        "<button type='button' class='menu-item' data-view-target='mqtt'><span>M</span><div><strong>MQTT</strong><small>Home Assistant</small></div></button>"
+        "<button type='button' class='menu-item' data-view-target='network'><span>N</span><div><strong>Network</strong><small>Wi-Fi & Ethernet</small></div></button>"
+        "<button type='button' class='menu-item' data-view-target='backup'><span>B</span><div><strong>Backup</strong><small>Import/export</small></div></button>"
+        "<button type='button' class='menu-item' data-view-target='system'><span>S</span><div><strong>System</strong><small>Logs/update</small></div></button>"
+        "</aside><div class='content'>",
+        bt_off ? "<span style='color:var(--warn);'>Disabled</span>" : "Keyboard",
+        rf_off ? "<span style='color:var(--warn);'>Disabled</span>" : "RF Remote & Screen",
+        bt_off ? "<span style='color:var(--warn);'>Disabled</span>" : "Homatics BLE");
 }
 
+
 static void page_end(FILE *f) {
-    fputs("<script>const REMOTE_B25_SKIN_SRC='https://cdn.jsdelivr.net/gh/iranl/harmony-hub-control@main/docs/assets/remote_b25_skin.jpg';\nconst REMOTE_ELITE_SKIN_SRC='/assets/remote_elite_skin.jpg';\n", f);
+    fputs("<script>const REMOTE_B25_SKIN_SRC='https://cdn.jsdelivr.net/gh/iranl/harmony-hub-control@main/docs/assets/remote_b25_skin.jpg';\nconst REMOTE_ELITE_SKIN_SRC='https://cdn.jsdelivr.net/gh/iranl/harmony-hub-control@main/docs/assets/remote_elite_skin.png';\n", f);
     fputs(
         "const $=id=>document.getElementById(id);"
         "if('scrollRestoration' in history)history.scrollRestoration='manual';"
@@ -61,7 +80,7 @@ static void page_end(FILE *f) {
         "function populateInspector(devId,slotBtn){if(!slotBtn)return;const insp=document.querySelector('.vslot-inspector[data-inspector-device=\"'+devId+'\"]');if(!insp)return;webRemoteSelectedSlot[devId]=slotBtn.dataset.vslot;const rem=slotBtn.closest('.vremote-body');if(rem)rem.querySelectorAll('[data-vslot]').forEach(b=>b.classList.toggle('selected',b===slotBtn));const slot=slotBtn.dataset.vslot,lbl=slotBtn.dataset.slotLabel||slot,cmd=slotBtn.dataset.cmdName||'';const nameEl=insp.querySelector('.vslot-target-name'),statEl=insp.querySelector('.vslot-target-status');if(nameEl)nameEl.textContent=lbl;if(statEl){statEl.className='vslot-target-status badge '+(cmd?'ok':'warn');statEl.textContent=cmd?('mapped: '+cmd):'unmapped';}const cmds=currentCommandsFor(devId);const sel=insp.querySelector('.vslot-cmd-select'),chipsBox=insp.querySelector('.vslot-chips-grid');if(sel){const curVal=cmd;sel.replaceChildren();const optNone=document.createElement('option');optNone.value='';optNone.textContent='-- None (Unmapped) --';sel.append(optNone);cmds.forEach(c=>{const o=document.createElement('option');o.value=c.name;o.textContent=c.name;sel.append(o);});sel.value=curVal;}if(chipsBox){chipsBox.replaceChildren();cmds.forEach(c=>{const chip=document.createElement('button');chip.type='button';chip.className='vslot-chip'+(c.name===cmd?' active':'');chip.textContent=c.name;chip.dataset.cmd=c.name;chip.addEventListener('click',()=>assignSlotCommand(devId,slot,c.name));chipsBox.append(chip);});}}"
         "function setupWebRemoteEvents(){document.querySelectorAll('.vtab-btn').forEach(btn=>{btn.addEventListener('click',()=>{const t=btn.dataset.vtabTarget,c=btn.closest('.ir-device-workspace');if(!c)return;c.querySelectorAll('.vtab-btn').forEach(b=>b.classList.toggle('active',b===btn));c.querySelectorAll('.vtab-panel').forEach(p=>{p.classList.toggle('hidden',!p.classList.contains('vtab-panel-'+t));p.classList.toggle('active',p.classList.contains('vtab-panel-'+t));});});});document.querySelectorAll('.vtab-edit-toggle').forEach(btn=>{btn.addEventListener('click',()=>{const devId=btn.dataset.deviceEdit;webRemoteEditMode[devId]=!webRemoteEditMode[devId];const isEdit=!!webRemoteEditMode[devId];btn.classList.toggle('active',isEdit);btn.textContent=isEdit?'Done Editing':'Edit Layout';const stage=document.querySelector('.vremote-stage[data-remote-stage=\"'+devId+'\"]');const insp=document.querySelector('.vslot-inspector[data-inspector-device=\"'+devId+'\"]');const rem=document.querySelector('.vremote-body[data-vremote-shell=\"'+devId+'\"]');if(stage)stage.classList.toggle('editing',isEdit);if(insp)insp.classList.toggle('hidden',!isEdit);if(rem)rem.classList.toggle('vrem-edit-mode',isEdit);if(isEdit){let selBtn=rem?rem.querySelector('[data-vslot].selected'):null;if(!selBtn&&rem)selBtn=rem.querySelector('[data-vslot]');if(selBtn)populateInspector(devId,selBtn);}else if(rem){rem.querySelectorAll('[data-vslot]').forEach(b=>b.classList.remove('selected'));}});});document.querySelectorAll('.vslot-inspector').forEach(insp=>{const devId=insp.dataset.inspectorDevice;const searchInp=insp.querySelector('.vslot-search');if(searchInp){searchInp.addEventListener('input',()=>{const q=searchInp.value.trim().toLowerCase();insp.querySelectorAll('.vslot-chip').forEach(ch=>{const txt=ch.dataset.cmd.toLowerCase();ch.classList.toggle('hidden',!!q&&!txt.includes(q));});const sel=insp.querySelector('.vslot-cmd-select');if(sel){Array.from(sel.options).forEach(opt=>{if(!opt.value)return;opt.hidden=!!q&&!opt.value.toLowerCase().includes(q);});}});};const assignBtn=insp.querySelector('.vslot-assign-btn');if(assignBtn){assignBtn.addEventListener('click',()=>{const slot=webRemoteSelectedSlot[devId];const sel=insp.querySelector('.vslot-cmd-select');if(!slot)return alert('Select a button first.');assignSlotCommand(devId,slot,sel?sel.value:'');});}const clearBtn=insp.querySelector('.vslot-clear-btn');if(clearBtn){clearBtn.addEventListener('click',()=>{const slot=webRemoteSelectedSlot[devId];if(!slot)return;assignSlotCommand(devId,slot,'');});}const testBtn=insp.querySelector('.vslot-test-btn');if(testBtn){testBtn.addEventListener('click',async()=>{const sel=insp.querySelector('.vslot-cmd-select');const cmd=sel?sel.value:'';if(!cmd)return alert('No command selected to test.');try{testBtn.disabled=true;irStatus(devId,'Testing '+cmd+'...');const j=await postJson('/api/ir-send',{deviceId:devId,command:cmd});irStatus(devId,'Sent '+cmd+(j.reply?': '+String(j.reply).slice(0,100):''));}catch(e){irStatus(devId,'Test failed: '+(e.message||e));}finally{testBtn.disabled=false;}});};const autoBtn=insp.querySelector('.vslot-automap-btn');if(autoBtn){autoBtn.addEventListener('click',()=>{const cmds=currentCommandsFor(devId);if(!cmds||!cmds.length)return alert('No saved commands for this device.');const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');if(!webRemoteLayouts[devId])webRemoteLayouts[devId]={};let mapped=0;Object.entries(STANDARD_REMOTE_ALIASES).forEach(([slot,aliases])=>{for(const a of aliases){const ta=norm(a);const m=cmds.find(c=>norm(c.name)===ta);if(m){webRemoteLayouts[devId][slot]=m.name;mapped++;break;}}});localStorage.setItem('webui_remote_layout',JSON.stringify(webRemoteLayouts));applyWebRemoteLayouts();const rem=document.querySelector('.vremote-body[data-vremote-shell=\"'+devId+'\"]');const selBtn=rem?rem.querySelector('[data-vslot].selected')||rem.querySelector('[data-vslot]'):null;if(selBtn)populateInspector(devId,selBtn);alert('Auto-mapped '+mapped+' standard button(s)!');});};const resetBtn=insp.querySelector('.vslot-reset-btn');if(resetBtn){resetBtn.addEventListener('click',()=>{if(!confirm('Reset remote layout to defaults for this device?'))return;delete webRemoteLayouts[devId];localStorage.setItem('webui_remote_layout',JSON.stringify(webRemoteLayouts));location.reload();});};});document.querySelectorAll('.vtab-save-hub').forEach(btn=>{btn.addEventListener('click',async()=>{try{btn.disabled=true;btn.textContent='Saving...';const r=await fetch('/api/ui-remote-layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(webRemoteLayouts)});const j=await r.json();if(j&&j.ok)alert('Remote layout saved to Hub!');else throw new Error(j.error||j.message||'Failed');}catch(e){alert('Save to hub failed: '+(e.message||e));}finally{btn.disabled=false;btn.textContent='Save to Hub';}});});document.querySelectorAll('.vremote-body [data-vslot]').forEach(btn=>{btn.addEventListener('click',async()=>{const devId=btn.dataset.deviceId,slot=btn.dataset.vslot,isEdit=!!webRemoteEditMode[devId];if(isEdit){populateInspector(devId,btn);return;}const cmd=btn.dataset.cmdName;if(!cmd){irStatus(devId,'Button \"'+(btn.dataset.slotLabel||slot)+'\" is unmapped. Click Edit Layout.');return;}try{btn.classList.add('sending');irStatus(devId,'Sending '+cmd+'...');if(wsConnected){try{await sendWsCommand('send_command',{deviceId:devId,command:cmd});irStatus(devId,'Sent '+cmd);return;}catch(_e){}}const j=await postJson('/api/ir-send',{deviceId:devId,command:cmd});irStatus(devId,'Sent '+cmd+(j.reply?': '+String(j.reply).slice(0,140):''));}catch(err){irStatus(devId,'Send failed: '+(err.message||err));}finally{setTimeout(()=>btn.classList.remove('sending'),200);}});});}"
         "document.querySelectorAll('[data-remote-b25-skin]').forEach(img=>{img.onerror=()=>{if(!img.dataset.fallback){img.dataset.fallback='1';img.src='https://raw.githubusercontent.com/iranl/harmony-hub-control/main/docs/assets/remote_b25_skin.jpg';}};img.src=REMOTE_B25_SKIN_SRC;});"
-        "document.querySelectorAll('[data-remote-elite-skin]').forEach(img=>{img.onerror=()=>{if(!img.dataset.fallback){img.dataset.fallback='1';img.src='https://raw.githubusercontent.com/iranl/harmony-hub-control/main/docs/assets/remote_elite_skin.jpg';}};img.src=REMOTE_ELITE_SKIN_SRC;});"
+        "document.querySelectorAll('[data-remote-elite-skin]').forEach(img=>{img.onerror=()=>{if(!img.dataset.fallback){img.dataset.fallback='1';img.src='https://raw.githubusercontent.com/iranl/harmony-hub-control/main/docs/assets/remote_elite_skin.png';}};img.src=REMOTE_ELITE_SKIN_SRC;});"
         "function showView(name){let panel='';if(name&&name.startsWith('ir-')){panel=name.slice(3);name='ir';}if(!name)name='overview';if(name==='wifi')name='network';let found=false;document.querySelectorAll('[data-view]').forEach(s=>{const on=s.dataset.view===name;s.classList.toggle('active',on);if(on)found=true;});if(!found&&name!=='overview'){showView('overview');return;}document.querySelectorAll('[data-view-target]').forEach(b=>b.classList.toggle('active',b.dataset.viewTarget===name));if(location.hash!=='#'+name)history.replaceState(null,'','#'+name);if(name==='overview'||name==='mqtt')refreshMqttStatus();if(name==='ir'&&panel)setTimeout(()=>showWizardPanel(panel),0);if(name==='activities')loadActivities();if(name==='remotes'){loadRemoteMappings();refreshBtBackend();}if(name==='rf-remote'){loadEliteMappings();refreshRfStatus();}if(name==='bluetooth')startBtPolling();else stopBtPolling();window.scrollTo(0,0);setTimeout(()=>window.scrollTo(0,0),0);}"
         "document.querySelectorAll('[data-view-target]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.viewTarget)));"
         "showView((location.hash||'#overview').slice(1));setTimeout(loadActivities,60);setTimeout(refreshMqttStatus,100);initWebUiWs();initWebRemoteLayouts();setupWebRemoteEvents();"
@@ -695,6 +714,12 @@ static void status_panel(FILE *f, const struct mqtt_config *mqtt) {
     html(f, inventory_label);
     fprintf(f, "</div><div class='muted mini'>%d commands</div></div>", command_count);
     fprintf(f, "<div class='stat'><div class='label'>Active Activity</div><div class='value'><span id='dashActiveActName' class='badge ok'>PowerOff</span></div><div id='dashActiveActDetail' class='muted mini'>ID: -1</div></div>");
+    int bt_is_off = (access(BT_DISABLED_CONFIG, F_OK) == 0);
+    int rf_is_off = (access(RF_DISABLED_CONFIG, F_OK) == 0);
+    fprintf(f, "<div class='stat'><div class='label'>Bluetooth</div><div class='value'><span class='badge %s'>%s</span></div><div class='muted mini'>%s</div></div>",
+        bt_is_off ? "warn" : "ok", bt_is_off ? "Disabled" : "Active", bt_is_off ? "stack stopped" : "BTstack ready");
+    fprintf(f, "<div class='stat'><div class='label'>Elite RF Link</div><div class='value'><span class='badge %s'>%s</span></div><div class='muted mini'>%s</div></div>",
+        rf_is_off ? "warn" : "ok", rf_is_off ? "Disabled" : "Active", rf_is_off ? "daemon stopped" : "CC2544 ready");
     fprintf(f, "<div class='stat'><div class='label'>Software update</div><div class='value'><span id='dashUpdateBadge' class='badge %s'>", update_class);
     html(f, update_badge);
     fprintf(f, "</span></div><div id='dashUpdateDetail' class='muted mini'>");
@@ -1791,6 +1816,24 @@ static void bt_saved_devices_panel(FILE *f, const struct bt_inventory *inv) {
 }
 
 static void bluetooth_panel(FILE *f) {
+    int bt_disabled = (access(BT_DISABLED_CONFIG, F_OK) == 0);
+    if (bt_disabled) {
+        fprintf(f, "<section id='view-bluetooth' data-view='bluetooth' class='section'>"
+                   "<div class='section-head'><div><h2>Bluetooth Keyboard & Remote</h2>"
+                   "<div class='section-lead'>Control devices via Bluetooth HID.</div></div>"
+                   "<span class='pill warn'>Disabled</span></div>"
+                   "<div class='panel' style='border-left:4px solid var(--warn);padding:24px;text-align:center;'>"
+                   "<div style='font-size:32px;margin-bottom:8px;'>⚠️</div>"
+                   "<h3 style='margin:0 0 8px 0;'>Bluetooth is Disabled</h3>"
+                   "<p class='muted' style='max-width:540px;margin:0 auto 16px;'>Bluetooth and the BTstack engine are completely disabled. The daemon is stopped and will not load on boot.</p>"
+                   "<div class='help' style='margin-bottom:16px;'>To re-enable Bluetooth, go to <strong>System &gt; Radio &amp; Hardware Controls</strong> or click below:</div>"
+                   "<form method='post' action='/system#system' style='display:inline-block;'>"
+                   "<input type='hidden' name='action' value='enable_radio'>"
+                   "<input type='hidden' name='radio' value='bluetooth'>"
+                   "<button type='submit'>Re-enable Bluetooth</button>"
+                   "</form></div></section>");
+        return;
+    }
     struct bt_inventory btinv;
     load_bt_inventory(&btinv);
 
@@ -1969,6 +2012,24 @@ static void bluetooth_panel(FILE *f) {
 }
 
 static void elite_rf_panel(FILE *f) {
+    int rf_disabled = (access(RF_DISABLED_CONFIG, F_OK) == 0);
+    if (rf_disabled) {
+        fprintf(f, "<section id='view-rf-remote' data-view='rf-remote' class='section'>"
+                   "<div class='section-head'><div><h2>Logitech Harmony Elite Remote</h2>"
+                   "<div class='section-lead'>Direct 2.4GHz CC2544 RF link with full button and touchscreen mapping.</div></div>"
+                   "<span class='pill warn'>Disabled</span></div>"
+                   "<div class='panel' style='border-left:4px solid var(--warn);padding:24px;text-align:center;'>"
+                   "<div style='font-size:32px;margin-bottom:8px;'>⚠️</div>"
+                   "<h3 style='margin:0 0 8px 0;'>Harmony Elite RF is Disabled</h3>"
+                   "<p class='muted' style='max-width:540px;margin:0 auto 16px;'>The CC2544 RF transceiver and codex_rf daemon are completely disabled and will not load on boot.</p>"
+                   "<div class='help' style='margin-bottom:16px;'>To re-enable RF, go to <strong>System &gt; Radio &amp; Hardware Controls</strong> or click below:</div>"
+                   "<form method='post' action='/system#system' style='display:inline-block;'>"
+                   "<input type='hidden' name='action' value='enable_radio'>"
+                   "<input type='hidden' name='radio' value='rf'>"
+                   "<button type='submit'>Re-enable RF Transceiver</button>"
+                   "</form></div></section>");
+        return;
+    }
     fprintf(f, "<section id='view-rf-remote' data-view='rf-remote' class='section'>");
     fprintf(f, "<div class='section-head'><div><h2>Logitech Harmony Elite Remote</h2><div class='section-lead'>Direct 2.4GHz CC2544 RF link with full button and touchscreen mapping per activity.</div></div><span class='pill'>RF & Screen Mapping</span></div>");
 
@@ -2004,60 +2065,62 @@ static void elite_rf_panel(FILE *f) {
     fprintf(f, "<img data-remote-elite-skin alt='Logitech Harmony Elite Remote'>");
 
     /* Top: Power Button */
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:38%%;top:9.2%%;width:24%%;height:2.6%%;' data-btn='PowerOffActivity' title='Power Off (All Off)'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:41.8%%;top:3.8%%;width:16.4%%;height:2.8%%;' data-btn='PowerOffActivity' title='Power Off (All Off)'></button>");
 
     /* Touchscreen display area */
-    fprintf(f, "<div class='elite-hotspot rect' style='left:33%%;top:13%%;width:34%%;height:25.5%%;border-color:rgba(0,255,180,.2);background:rgba(0,255,180,.03);' title='Touchscreen Display (240x320)'></div>");
+    fprintf(f, "<div class='elite-hotspot rect' style='left:13.7%%;top:9.8%%;width:72.6%%;height:29.3%%;border-color:rgba(0,255,180,.2);background:rgba(0,255,180,.03);' title='Touchscreen Display (240x320)'></div>");
 
     /* Capacitive touch buttons below screen */
-    fprintf(f, "<button type='button' class='elite-hotspot rect' style='left:33%%;top:39.8%%;width:16%%;height:2.2%%;' data-btn='WatchTVActivity' title='Activities Touch Key'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot rect' style='left:51%%;top:39.8%%;width:16%%;height:2.2%%;' data-btn='Devices' title='Devices Touch Key'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot rect' style='left:14.0%%;top:41.1%%;width:32.0%%;height:2.5%%;' data-btn='WatchTVActivity' title='Activities Touch Key'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot rect' style='left:54.0%%;top:41.1%%;width:32.0%%;height:2.5%%;' data-btn='Devices' title='Devices Touch Key'></button>");
 
     /* Transport row 1 */
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:33%%;top:42.6%%;width:10.5%%;height:2.4%%;' data-btn='Rewind' title='Rewind'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:44.75%%;top:42.6%%;width:10.5%%;height:2.4%%;' data-btn='Play' title='Play / Pause'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:56.5%%;top:42.6%%;width:10.5%%;height:2.4%%;' data-btn='FastForward' title='Fast Forward'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:14.0%%;top:47.2%%;width:20.0%%;height:2.5%%;' data-btn='Rewind' title='Rewind'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:40.0%%;top:47.2%%;width:20.0%%;height:2.5%%;' data-btn='Play' title='Play / Pause'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:66.0%%;top:47.2%%;width:20.0%%;height:2.5%%;' data-btn='FastForward' title='Fast Forward'></button>");
 
     /* Transport row 2 */
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:33%%;top:45.5%%;width:10.5%%;height:2.4%%;' data-btn='Record' title='Record'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:44.75%%;top:45.5%%;width:10.5%%;height:2.4%%;' data-btn='Pause' title='Pause'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:56.5%%;top:45.5%%;width:10.5%%;height:2.4%%;' data-btn='Stop' title='Stop'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:14.0%%;top:50.9%%;width:20.0%%;height:2.5%%;' data-btn='Record' title='Record'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:40.0%%;top:50.9%%;width:20.0%%;height:2.5%%;' data-btn='Pause' title='Pause'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:66.0%%;top:50.9%%;width:20.0%%;height:2.5%%;' data-btn='Stop' title='Stop'></button>");
 
     /* Skip / Chapter row */
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:33%%;top:48.5%%;width:16%%;height:2.4%%;' data-btn='PrevChannel' title='Skip Prev'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:51%%;top:48.5%%;width:16%%;height:2.4%%;' data-btn='ChannelUp' title='Skip Next'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:18.0%%;top:54.9%%;width:26.0%%;height:2.5%%;' data-btn='PrevChannel' title='Skip Prev'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:56.0%%;top:54.9%%;width:26.0%%;height:2.5%%;' data-btn='ChannelUp' title='Skip Next'></button>");
 
     /* D-PAD Ring & OK */
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:42%%;top:50.5%%;width:16%%;height:3.8%%;' data-btn='DirectionUp' title='Up'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:42%%;top:54.6%%;width:16%%;height:4.2%%;' data-btn='Select' title='OK / Select'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:42%%;top:59.2%%;width:16%%;height:3.8%%;' data-btn='DirectionDown' title='Down'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:33%%;top:54.6%%;width:8.5%%;height:4.2%%;' data-btn='DirectionLeft' title='Left'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:58.5%%;top:54.6%%;width:8.5%%;height:4.2%%;' data-btn='DirectionRight' title='Right'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:37.0%%;top:58.6%%;width:26.0%%;height:3.2%%;' data-btn='DirectionUp' title='Up'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:14.0%%;top:61.8%%;width:18.0%%;height:3.3%%;' data-btn='DirectionLeft' title='Left'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:38.0%%;top:61.8%%;width:24.0%%;height:3.3%%;' data-btn='Select' title='OK / Select'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:68.0%%;top:61.8%%;width:18.0%%;height:3.3%%;' data-btn='DirectionRight' title='Right'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:37.0%%;top:65.5%%;width:26.0%%;height:3.2%%;' data-btn='DirectionDown' title='Down'></button>");
 
     /* Back & Exit */
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:33%%;top:63.5%%;width:16%%;height:2.8%%;' data-btn='Back' title='Back'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:51%%;top:63.5%%;width:16%%;height:2.8%%;' data-btn='Exit' title='Exit'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:18.0%%;top:68.3%%;width:26.0%%;height:2.5%%;' data-btn='Back' title='Back'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:56.0%%;top:68.3%%;width:26.0%%;height:2.5%%;' data-btn='Exit' title='Exit'></button>");
 
     /* Volume & Channel & Mute */
-    fprintf(f, "<button type='button' class='elite-hotspot rect' style='left:33%%;top:67%%;width:11%%;height:3.5%%;' data-btn='VolumeUp' title='Volume Up'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot rect' style='left:33%%;top:70.7%%;width:11%%;height:3.5%%;' data-btn='VolumeDown' title='Volume Down'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:45%%;top:68.5%%;width:10%%;height:2.8%%;' data-btn='VolumeMute' title='Mute'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot rect' style='left:56%%;top:67%%;width:11%%;height:3.5%%;' data-btn='ChannelUp' title='Channel Up'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot rect' style='left:56%%;top:70.7%%;width:11%%;height:3.5%%;' data-btn='ChannelDown' title='Channel Down'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot rect' style='left:15.0%%;top:72.0%%;width:18.0%%;height:2.4%%;' data-btn='VolumeUp' title='Volume Up'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot rect' style='left:15.0%%;top:74.4%%;width:18.0%%;height:2.4%%;' data-btn='VolumeDown' title='Volume Down'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:41.0%%;top:73.0%%;width:18.0%%;height:2.8%%;' data-btn='VolumeMute' title='Mute'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot rect' style='left:67.0%%;top:72.0%%;width:18.0%%;height:2.4%%;' data-btn='ChannelUp' title='Channel Up'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot rect' style='left:67.0%%;top:74.4%%;width:18.0%%;height:2.4%%;' data-btn='ChannelDown' title='Channel Down'></button>");
 
     /* Guide / Info / Menu / DVR */
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:33%%;top:74.8%%;width:10.5%%;height:2.5%%;' data-btn='Guide' title='Guide'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:44.75%%;top:74.8%%;width:10.5%%;height:2.5%%;' data-btn='Info' title='Info'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:56.5%%;top:74.8%%;width:10.5%%;height:2.5%%;' data-btn='Menu' title='Menu'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:56.5%%;top:77.7%%;width:10.5%%;height:2.5%%;' data-btn='Dvr' title='DVR'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:13.0%%;top:78.1%%;width:16.0%%;height:2.5%%;' data-btn='Guide' title='Guide'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:32.0%%;top:78.1%%;width:16.0%%;height:2.5%%;' data-btn='Info' title='Info'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:52.0%%;top:78.1%%;width:16.0%%;height:2.5%%;' data-btn='Menu' title='Menu'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:71.0%%;top:78.1%%;width:16.0%%;height:2.5%%;' data-btn='Dvr' title='DVR'></button>");
 
-    /* Home Automation */
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:33%%;top:80.8%%;width:7.5%%;height:2.5%%;' data-btn='Ha1' title='HA Light'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:41.5%%;top:80.8%%;width:7.5%%;height:2.5%%;' data-btn='Ha2' title='HA Sun/Brightness'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot rect' style='left:50%%;top:80.8%%;width:8.5%%;height:2.5%%;' data-btn='RockerDown' title='Automation Rocker Down'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot rect' style='left:59%%;top:80.8%%;width:8.5%%;height:2.5%%;' data-btn='RockerUp' title='Automation Rocker Up'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:33%%;top:83.8%%;width:16%%;height:2.8%%;' data-btn='Ha3' title='HA Power'></button>");
-    fprintf(f, "<button type='button' class='elite-hotspot' style='left:51%%;top:83.8%%;width:16%%;height:2.8%%;' data-btn='Ha4' title='HA Plug/Socket'></button>");
+    /* Home Automation Row 1 */
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:13.0%%;top:83.4%%;width:16.0%%;height:3.0%%;' data-btn='Ha1' title='HA Light'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:32.0%%;top:83.4%%;width:16.0%%;height:3.0%%;' data-btn='Ha2' title='HA Sun/Brightness'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot rect' style='left:52.0%%;top:83.4%%;width:16.0%%;height:3.0%%;' data-btn='RockerDown' title='Automation Rocker Down'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot rect' style='left:71.0%%;top:83.4%%;width:16.0%%;height:3.0%%;' data-btn='RockerUp' title='Automation Rocker Up'></button>");
+
+    /* Home Automation Row 2 */
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:20.0%%;top:87.5%%;width:24.0%%;height:3.0%%;' data-btn='Ha3' title='HA Power'></button>");
+    fprintf(f, "<button type='button' class='elite-hotspot' style='left:56.0%%;top:87.5%%;width:24.0%%;height:3.0%%;' data-btn='Ha4' title='HA Plug/Socket'></button>");
 
     fprintf(f, "</div>"); /* elite-remote-skin */
     fprintf(f, "</div><div class='help'>Click any button or area on the remote graphic to inspect or customize its mapping.</div></div>");
@@ -2094,6 +2157,24 @@ static void elite_rf_panel(FILE *f) {
 }
 
 static void remotes_panel(FILE *f) {
+    int bt_disabled = (access(BT_DISABLED_CONFIG, F_OK) == 0);
+    if (bt_disabled) {
+        fprintf(f, "<section id='view-remotes' data-view='remotes' class='section'>"
+                   "<div class='section-head'><div><h2>Physical Bluetooth Remote</h2>"
+                   "<div class='section-lead'>Pair a physical Bluetooth remote (Homatics B25 / BLE).</div></div>"
+                   "<span class='pill warn'>Disabled</span></div>"
+                   "<div class='panel' style='border-left:4px solid var(--warn);padding:24px;text-align:center;'>"
+                   "<div style='font-size:32px;margin-bottom:8px;'>⚠️</div>"
+                   "<h3 style='margin:0 0 8px 0;'>Bluetooth is Disabled</h3>"
+                   "<p class='muted' style='max-width:540px;margin:0 auto 16px;'>Bluetooth and the BTstack engine are completely disabled. BLE remote mapping is offline and will not load on boot.</p>"
+                   "<div class='help' style='margin-bottom:16px;'>To re-enable Bluetooth, go to <strong>System &gt; Radio &amp; Hardware Controls</strong> or click below:</div>"
+                   "<form method='post' action='/system#system' style='display:inline-block;'>"
+                   "<input type='hidden' name='action' value='enable_radio'>"
+                   "<input type='hidden' name='radio' value='bluetooth'>"
+                   "<button type='submit'>Re-enable Bluetooth</button>"
+                   "</form></div></section>");
+        return;
+    }
     int btstack_on = is_btstack_running();
     fprintf(f, "<section id='view-remotes' data-view='remotes' class='section'>");
     fprintf(f, "<div class='section-head'><div><h2>Physical Bluetooth Remote</h2><div class='section-lead'>Pair a physical Bluetooth remote (Homatics B25 / Android TV BLE remote) and map buttons per running activity or power-off state.</div></div><span class='pill'>BLE Mapping</span></div>");
@@ -2245,6 +2326,32 @@ static void system_panel(FILE *f) {
     fprintf(f, "'><div class='help'>Use plain text without a colon.</div></div><div><label>New password</label><input name='authPassword' type='password' autocomplete='new-password' placeholder='Leave blank to keep current password'><div class='help'>Required the first time you enable sign-in.</div></div></div>");
     fprintf(f, "<div class='help'>Current mode: <strong>%s</strong>.</div>", auth.enabled ? "sign-in required" : "open on local network");
     fprintf(f, "<div class='actions'><button name='action' value='auth' type='submit'>Save sign-in setting</button><span id='authSaveStatus' class='save-status subtle' style='margin-left:8px;align-self:center;'></span></div></form></div>");
+    int bt_enabled = (access(BT_DISABLED_CONFIG, F_OK) != 0);
+    int rf_enabled = (access(RF_DISABLED_CONFIG, F_OK) != 0);
+    fprintf(f, "<div class='panel' style='margin-top:12px'><h3>Radio &amp; Hardware Controls</h3>"
+               "<div class='help'>Enable or disable Bluetooth and RF hardware interfaces separately. When disabled, the corresponding daemons (BTstack / codex_rf) are stopped and will not load on boot.</div>"
+               "<form id='systemRadioForm' method='post' action='/system#system' autocomplete='off'>"
+               "<div class='grid two' style='margin-top:10px;'>"
+               "<div><label class='inline-check'><input type='checkbox' name='btEnabled' value='1' %s> <strong>Bluetooth Stack (BTstack)</strong></label>"
+               "<div class='muted mini' style='margin-top:4px;'>Enables hci0 and runs BTstack for BLE remotes and Bluetooth keyboard.</div></div>"
+               "<div><label class='inline-check'><input type='checkbox' name='rfEnabled' value='1' %s> <strong>CC2544 RF Transceiver (codex_rf)</strong></label>"
+               "<div class='muted mini' style='margin-top:4px;'>Enables 2.4GHz RF communication with the Logitech Harmony Elite remote.</div></div>"
+               "</div>"
+               "<div class='actions' style='margin-top:14px;'><button name='action' value='radio_toggles' type='submit'>Save radio settings</button></div>"
+               "</form></div>",
+               bt_enabled ? "checked" : "",
+               rf_enabled ? "checked" : "");
+    char reboot_cnt_str[32] = "0";
+    read_text(REBOOT_COUNTER_FILE, reboot_cnt_str, sizeof(reboot_cnt_str));
+    chomp(reboot_cnt_str);
+    int reboot_cnt = atoi(reboot_cnt_str);
+    fprintf(f, "<div class='panel' style='margin-top:12px'><h3>Emergency Recovery Protection</h3>"
+               "<div class='help'>Reboot crash monitor: if the hub fails to reach 5 minutes of stable uptime for more than 5 consecutive boots, it enters Safe Mode with only Wi-Fi and Dropbear SSH active.</div>"
+               "<div style='margin-top:8px;'><span class='badge %s'>Reboot crash counter: %d / 5</span></div>"
+               "<form method='post' action='/system#system' style='margin-top:10px;'>"
+               "<div class='actions'><button name='action' value='reset_reboot_counter' type='submit' class='secondary mini'>Reset crash counter</button></div>"
+               "</form></div>",
+               reboot_cnt > 0 ? "warn" : "ok", reboot_cnt);
     fprintf(f, "<div class='panel' style='margin-top:12px'><h3>Software update</h3><div class='help'>Check the public release files, copy newer binaries to the hub, verify checksums, and restart the local services. SSH access is not changed. The default public repository tries GitHub and CDN mirrors without a token. Use the token field only for private repositories.</div><form id='updateForm' autocomplete='off' onsubmit='return false'><div class='grid two'><div><label for='updateRepo'>Optional update mirror URL</label><input id='updateRepo' autocomplete='url' value='https://raw.githubusercontent.com/Ripthulhu/harmony-hub-control/main/payload/bin/'></div><div><label for='updateToken'>GitHub token (private repos only)</label><input id='updateToken' type='password' autocomplete='new-password' placeholder='optional; used only by this browser'></div></div><div class='actions'><button id='updateCheck' type='button' class='secondary'>Check for updates</button><button id='updateInstall' type='button'>Install update</button><button id='updateRefresh' type='button' class='secondary'>Show installed versions</button></div></form><pre id='updateLog' class='mini'>Ready. Check the public repo, or paste a token if the repo is private.</pre></div><div class='panel' style='margin-top:12px'><div class='help'>Refresh Home Assistant discovery if new devices or commands do not appear after changes.</div><form id='systemActionsForm' method='post' action='/system#system'><div class='actions'><button name='action' value='rediscover' type='submit'>Refresh Home Assistant discovery</button><button name='action' value='reboot' type='submit' class='secondary'>Reboot hub</button><span id='sysActionStatus' class='save-status subtle' style='margin-left:8px;align-self:center;'></span></div></form></div></section>");
 }
 

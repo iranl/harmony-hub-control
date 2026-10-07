@@ -2,6 +2,10 @@
 PATH=/data/codex/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 LOG=/tmp/codex-init.log
 
+sync_fs() {
+  sync 2>/dev/null || /data/codex/bin/codex_sync 2>/dev/null || /data/codex/bin/sync 2>/dev/null || true
+}
+
 echo "$(date) codex init start" > "$LOG"
 
 # 0. Neuter watchdog and crash reporting immediately
@@ -92,19 +96,26 @@ chmod -x /usr/sbin/bluetoothd 2>/dev/null || true
 killall -9 bluetoothd codex_bthid_remote codex_bthid_keyboard 2>/dev/null || true
 rm -f /data/codex/bin/codex_bthid_remote /data/codex/bin/codex_bthid_keyboard 2>/dev/null || true
 (
-  # Wait up to 30 seconds for hci0 to be initialized by rcS.local
-  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
-    if hciconfig hci0 2>/dev/null | grep -q 'UP'; then
-      break
-    fi
-    sleep 1
-  done
-
   _delay=5
   while true; do
+    if [ -f /data/codex/bt_disabled.conf ]; then
+      if pidof codex_btstack >/dev/null 2>&1; then
+        echo "$(date) BT disabled flag detected, stopping BTstack..." >> "$LOG"
+        killall -9 codex_btstack 2>/dev/null || true
+        hciconfig hci0 down 2>/dev/null || true
+      fi
+      sleep 5
+      continue
+    fi
+
+    # Ensure hci0 is UP
+    if ! hciconfig hci0 2>/dev/null | grep -q 'UP'; then
+      hciconfig hci0 up 2>/dev/null || true
+      sleep 1
+    fi
+
     if [ -x /data/codex/bin/codex_btstack ]; then
       if ! pidof codex_btstack >/dev/null 2>&1; then
-        hciconfig hci0 up 2>/dev/null || true
         echo "$(date) Starting BTstack backend..." >> "$LOG"
         /data/codex/bin/codex_btstack >> "$LOG" 2>&1
         echo "$(date) codex_btstack exited, retry in ${_delay}s" >> "$LOG"
@@ -122,6 +133,15 @@ rm -f /data/codex/bin/codex_bthid_remote /data/codex/bin/codex_bthid_keyboard 2>
 (
   _delay=5
   while true; do
+    if [ -f /data/codex/rf_disabled.conf ]; then
+      if pidof codex_rf >/dev/null 2>&1; then
+        echo "$(date) RF disabled flag detected, stopping codex_rf..." >> "$LOG"
+        killall -9 codex_rf 2>/dev/null || true
+      fi
+      sleep 5
+      continue
+    fi
+
     if [ -x /data/codex/bin/codex_rf ]; then
       if ! pidof codex_rf >/dev/null 2>&1; then
         echo "$(date) Starting codex_rf daemon..." >> "$LOG"

@@ -27,6 +27,8 @@ class HarmonyApp {
     // Sub-states
     this.b25MapData = { remote: { name: 'Homatics B25' }, activities: {} };
     this.b25SelectedBtn = 'power';
+    this.eliteMapData = { remote: { name: 'Harmony Elite' }, activities: {} };
+    this.eliteSelectedBtn = 'Select';
     this.kbMods = { ctrl: false, shift: false, alt: false, win: false };
     this.labQueue = [];
     this.labRunning = false;
@@ -234,11 +236,39 @@ class HarmonyApp {
     document.getElementById('labRun')?.addEventListener('click', () => this.runLabQueue());
     document.getElementById('labStop')?.addEventListener('click', () => this.stopLabQueue());
 
+    // Remote skins fallback handler
+    document.querySelectorAll('[data-remote-b25-skin]').forEach(img => {
+      img.onerror = () => {
+        if (!img.dataset.fallback) {
+          img.dataset.fallback = '1';
+          img.src = 'https://raw.githubusercontent.com/iranl/harmony-hub-control/main/docs/assets/remote_b25_skin.jpg';
+        }
+      };
+      if (!img.getAttribute('src')) {
+        img.src = './remote_b25_skin.jpg';
+      }
+    });
+    document.querySelectorAll('[data-remote-elite-skin]').forEach(img => {
+      img.onerror = () => {
+        if (!img.dataset.fallback) {
+          img.dataset.fallback = '1';
+          img.src = 'https://raw.githubusercontent.com/iranl/harmony-hub-control/main/docs/assets/remote_elite_skin.png';
+        }
+      };
+      if (!img.getAttribute('src')) {
+        img.src = './remote_elite_skin.png';
+      }
+    });
+
     // Bluetooth View Actions
     document.getElementById('btPairToggleBtn')?.addEventListener('click', () => this.toggleBtPairing());
     document.getElementById('btDisconnBtn')?.addEventListener('click', () => this.client.disconnectBt());
     document.getElementById('btRefreshBtn')?.addEventListener('click', () => this.loadBtView());
-    document.getElementById('btReleaseAll')?.addEventListener('click', () => this.client.sendBtKey('release_all'));
+    document.getElementById('btReleaseAll')?.addEventListener('click', () => {
+      const tgt = (document.getElementById('btTargetHostSelect')?.value || '').trim();
+      this.client.sendBtKey('release_all', 'tap', tgt);
+      this.appendBtLog('Released all keys' + (tgt ? ' on ' + tgt : ''));
+    });
     document.getElementById('btSendTextBtn')?.addEventListener('click', () => this.sendBtDirectText());
     document.getElementById('btClearTextBtn')?.addEventListener('click', () => {
       const el = document.getElementById('btDirectText');
@@ -270,10 +300,17 @@ class HarmonyApp {
           if (this.kbMods.alt) mods.push('alt');
           if (this.kbMods.win) mods.push('win');
           if (mods.length) code = `${mods.join('+')}+${key}`;
+          const tgt = (document.getElementById('btTargetHostSelect')?.value || '').trim();
           try {
-            await this.client.sendBtKey(code, 'tap');
+            await this.client.sendBtKey(code, 'tap', tgt);
+            this.appendBtLog('Key: ' + code + (tgt ? ' -> ' + tgt : ''));
           } catch (err) {
             console.warn('BT Key send error:', err);
+            this.appendBtLog('Key ' + code + ' failed: ' + (err.message || err));
+          }
+          if (mods.length) {
+            this.kbMods = { ctrl: false, shift: false, alt: false, win: false };
+            document.querySelectorAll('.kb-mod').forEach(m => m.classList.remove('kb-on'));
           }
         }
       });
@@ -294,6 +331,25 @@ class HarmonyApp {
     document.getElementById('b25RunPresetBtn')?.addEventListener('click', () => this.autoMapB25Preset());
     document.getElementById('b25ScanBtn')?.addEventListener('click', () => this.scanB25Remote());
     document.getElementById('b25PairBtn')?.addEventListener('click', () => this.pairB25Remote());
+
+    // Harmony Elite Remote Buttons
+    document.querySelectorAll('.elite-hotspot').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const btnId = btn.getAttribute('data-btn');
+        if (btnId) this.selectEliteButton(btnId);
+      });
+    });
+    document.getElementById('eliteActivitySelect')?.addEventListener('change', () => this.updateEliteButtonStates());
+    document.getElementById('eliteActionType')?.addEventListener('change', () => this.toggleEliteActionFields());
+    document.getElementById('eliteTargetDevice')?.addEventListener('change', () => this.updateEliteCommandDropdown());
+    document.getElementById('eliteApplyBtn')?.addEventListener('click', () => this.applyEliteMapping());
+    document.getElementById('eliteClearBtn')?.addEventListener('click', () => this.clearEliteMapping());
+    document.getElementById('eliteSaveAllBtn')?.addEventListener('click', () => this.saveAllEliteMappings());
+    document.getElementById('eliteRunPresetBtn')?.addEventListener('click', () => this.autoMapElitePreset());
+    document.getElementById('rfPairBtn')?.addEventListener('click', () => this.pairRfRemote());
+    document.getElementById('rfStopPairBtn')?.addEventListener('click', () => this.stopPairRfRemote());
+    document.getElementById('rfUnpairBtn')?.addEventListener('click', () => this.unpairRfRemote());
+    document.getElementById('rfRefreshBtn')?.addEventListener('click', () => this.refreshRfStatus());
 
     // MQTT Actions
     document.getElementById('mqttSaveBtn')?.addEventListener('click', () => this.saveMqttSettings());
@@ -433,6 +489,7 @@ class HarmonyApp {
     else if (tabId === 'ir') this.renderIrView();
     else if (tabId === 'lab') this.initLabView();
     else if (tabId === 'bluetooth') this.loadBtView();
+    else if (tabId === 'rf-remote') { this.loadEliteView(); this.refreshRfStatus(); }
     else if (tabId === 'remotes') this.loadRemotesView();
     else if (tabId === 'mqtt') this.loadMqttView();
     else if (tabId === 'network') this.loadNetworkView();
@@ -1642,14 +1699,24 @@ class HarmonyApp {
   async sendBtDirectText() {
     const txt = document.getElementById('btDirectText')?.value;
     const stat = document.getElementById('btTextStatus');
+    const target = (document.getElementById('btTargetHostSelect')?.value || '').trim();
     if (!txt) return;
     try {
       if (stat) stat.textContent = 'Sending text...';
-      await this.client.sendBtText(txt);
+      await this.client.sendBtText(txt, target);
       if (stat) stat.innerHTML = '<span style="color:var(--success)">Sent!</span>';
+      this.appendBtLog(`Sent ${txt.length} chars text` + (target ? ' -> ' + target : ''));
     } catch (err) {
       if (stat) stat.innerHTML = `<span style="color:var(--danger)">Error: ${err.message}</span>`;
+      this.appendBtLog(`Text send failed: ${err.message || err}`);
     }
+  }
+
+  appendBtLog(msg) {
+    const el = document.getElementById('btLog');
+    if (!el) return;
+    const time = new Date().toLocaleTimeString();
+    el.textContent = `[${time}] ${msg}\n` + (el.textContent === 'Ready.' ? '' : el.textContent.slice(0, 2000));
   }
 
   async runBtMacroScript() {
@@ -1886,6 +1953,262 @@ class HarmonyApp {
       if (log) log.textContent = `Paired with ${addr}!`;
     } catch (err) {
       if (log) log.textContent = 'Pairing failed: ' + err.message;
+    }
+  }
+
+  /* -------------------------------------------------------------
+   * 8b. Harmony Elite RF Remote View
+   * ------------------------------------------------------------- */
+  async loadEliteView() {
+    const sel = document.getElementById('eliteActivitySelect');
+    if (sel) {
+      sel.innerHTML = '<option value="-1">Off / Idle (Default)</option>' +
+        (this.activitiesData.activities || []).map(a => `<option value="${a.id}">${a.name || a.label}</option>`).join('');
+    }
+    const tgtDev = document.getElementById('eliteTargetDevice');
+    const presetDev = document.getElementById('elitePresetDevice');
+    const devs = this.inventory.devices || [];
+    if (tgtDev) tgtDev.innerHTML = devs.map(d => `<option value="${d.id}">${d.name || d.id}</option>`).join('');
+    if (presetDev) presetDev.innerHTML = devs.map(d => `<option value="${d.id}">${d.name || d.id}</option>`).join('');
+
+    try {
+      const m = await this.client.getEliteMapping();
+      if (m && m.activities) this.eliteMapData = m;
+    } catch (e) {
+      console.warn('Failed to load Elite mappings:', e);
+    }
+
+    this.selectEliteButton('Select');
+    this.updateEliteButtonStates();
+  }
+
+  selectEliteButton(btnId) {
+    this.eliteSelectedBtn = btnId;
+    document.querySelectorAll('.elite-hotspot').forEach(b => {
+      b.classList.toggle('selected', b.getAttribute('data-btn') === btnId);
+    });
+    const lbl = document.getElementById('eliteSelectedBtnLabel');
+    if (lbl) lbl.textContent = btnId;
+
+    const actId = document.getElementById('eliteActivitySelect')?.value || '-1';
+    const mapping = this.eliteMapData?.activities?.[actId]?.[btnId];
+
+    const typeSel = document.getElementById('eliteActionType');
+    if (typeSel) {
+      if (!mapping) typeSel.value = 'none';
+      else if (mapping.type) typeSel.value = mapping.type;
+      else if (mapping.command) typeSel.value = 'command';
+      this.toggleEliteActionFields();
+    }
+
+    if (mapping && mapping.deviceId) {
+      const devSel = document.getElementById('eliteTargetDevice');
+      if (devSel) devSel.value = mapping.deviceId;
+    }
+    this.updateEliteCommandDropdown(mapping?.command);
+  }
+
+  updateEliteCommandDropdown(curVal) {
+    const devId = document.getElementById('eliteTargetDevice')?.value;
+    const cmdSel = document.getElementById('eliteTargetCommand');
+    if (!cmdSel) return;
+    const dev = (this.inventory.devices || []).find(d => String(d.id) === String(devId));
+    cmdSel.innerHTML = (dev?.commands || []).map(c => `<option value="${c.name}" ${c.name === curVal ? 'selected' : ''}>${c.name}</option>`).join('');
+  }
+
+  toggleEliteActionFields() {
+    const t = document.getElementById('eliteActionType')?.value;
+    const wCmd = document.getElementById('eliteCommandFields');
+    const wSeq = document.getElementById('eliteSequenceFields');
+    const wScr = document.getElementById('eliteScriptFields');
+
+    if (wCmd) wCmd.style.display = t === 'command' ? 'block' : 'none';
+    if (wSeq) wSeq.style.display = t === 'sequence' ? 'block' : 'none';
+    if (wScr) wScr.style.display = t === 'script' ? 'block' : 'none';
+  }
+
+  applyEliteMapping() {
+    const actId = document.getElementById('eliteActivitySelect')?.value || '-1';
+    const type = document.getElementById('eliteActionType')?.value;
+    if (!this.eliteMapData.activities) this.eliteMapData.activities = {};
+    if (!this.eliteMapData.activities[actId]) this.eliteMapData.activities[actId] = {};
+
+    if (type === 'none') {
+      delete this.eliteMapData.activities[actId][this.eliteSelectedBtn];
+    } else if (type === 'command') {
+      this.eliteMapData.activities[actId][this.eliteSelectedBtn] = {
+        type: 'command',
+        deviceId: document.getElementById('eliteTargetDevice')?.value,
+        command: document.getElementById('eliteTargetCommand')?.value
+      };
+    } else if (type === 'sequence') {
+      this.eliteMapData.activities[actId][this.eliteSelectedBtn] = {
+        type: 'sequence',
+        sequence: document.getElementById('eliteTargetSequence')?.value
+      };
+    } else if (type === 'script') {
+      this.eliteMapData.activities[actId][this.eliteSelectedBtn] = {
+        type: 'script',
+        script: document.getElementById('eliteTargetScript')?.value
+      };
+    }
+    this.updateEliteButtonStates();
+  }
+
+  clearEliteMapping() {
+    const actId = document.getElementById('eliteActivitySelect')?.value || '-1';
+    if (this.eliteMapData.activities?.[actId]) {
+      delete this.eliteMapData.activities[actId][this.eliteSelectedBtn];
+    }
+    this.selectEliteButton(this.eliteSelectedBtn);
+    this.updateEliteButtonStates();
+  }
+
+  updateEliteButtonStates() {
+    const actId = document.getElementById('eliteActivitySelect')?.value || '-1';
+    const actMap = this.eliteMapData?.activities?.[actId] || {};
+    document.querySelectorAll('.elite-hotspot').forEach(b => {
+      const id = b.getAttribute('data-btn');
+      b.classList.toggle('mapped', Boolean(actMap[id]));
+    });
+    const stat = document.getElementById('eliteSelectedBtnStatus');
+    if (stat) {
+      const isMapped = Boolean(actMap[this.eliteSelectedBtn]);
+      stat.className = `badge ${isMapped ? 'ok' : 'subtle'}`;
+      stat.textContent = isMapped ? 'Mapped' : 'Unmapped';
+    }
+  }
+
+  async saveAllEliteMappings() {
+    const btn = document.getElementById('eliteSaveAllBtn');
+    try {
+      if (btn) btn.textContent = 'Saving...';
+      await this.client.saveEliteMapping(this.eliteMapData);
+      alert('Harmony Elite mappings saved to hub!');
+    } catch (err) {
+      alert('Save failed: ' + err.message);
+    } finally {
+      if (btn) btn.textContent = 'Save All to Hub';
+    }
+  }
+
+  autoMapElitePreset() {
+    const devId = document.getElementById('elitePresetDevice')?.value;
+    const actId = document.getElementById('eliteActivitySelect')?.value || '-1';
+    if (!devId) return alert('Select target device first.');
+    const dev = (this.inventory.devices || []).find(d => String(d.id) === String(devId));
+    if (!dev || !dev.commands) return alert('Device has no commands.');
+
+    const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const aliases = {
+      PowerOffActivity: ['poweroff', 'power off', 'standby', 'power'],
+      DirectionUp: ['up', 'directionup'],
+      DirectionDown: ['down', 'directiondown'],
+      DirectionLeft: ['left', 'directionleft'],
+      DirectionRight: ['right', 'directionright'],
+      Select: ['ok', 'select', 'enter'],
+      Back: ['back', 'return', 'exit'],
+      Exit: ['exit', 'cancel'],
+      VolumeUp: ['volumeup', 'volup', 'vol up'],
+      VolumeDown: ['volumedown', 'voldown', 'vol down'],
+      VolumeMute: ['mute', 'volumemute'],
+      ChannelUp: ['channelup', 'chup', 'pageup'],
+      ChannelDown: ['channeldown', 'chdown', 'pagedown'],
+      Rewind: ['rewind', 'rev'],
+      Play: ['play', 'playpause'],
+      FastForward: ['fastforward', 'forward', 'ffwd'],
+      Pause: ['pause'],
+      Stop: ['stop'],
+      Record: ['record', 'rec'],
+      Menu: ['menu', 'topmenu', 'homemenu'],
+      Info: ['info', 'display', 'guide'],
+      Guide: ['guide', 'epg']
+    };
+
+    if (!this.eliteMapData.activities) this.eliteMapData.activities = {};
+    if (!this.eliteMapData.activities[actId]) this.eliteMapData.activities[actId] = {};
+
+    let mapped = 0;
+    Object.entries(aliases).forEach(([btn, list]) => {
+      const cmd = dev.commands.find(c => list.some(a => norm(c.name) === norm(a)));
+      if (cmd) {
+        this.eliteMapData.activities[actId][btn] = {
+          type: 'command',
+          deviceId: devId,
+          command: cmd.name
+        };
+        mapped++;
+      }
+    });
+
+    this.updateEliteButtonStates();
+    alert(`Auto-mapped ${mapped} buttons for device! Click "Save All to Hub" to persist.`);
+  }
+
+  async refreshRfStatus() {
+    try {
+      const st = await this.client.getRfStatus();
+      const addr = document.getElementById('rfPairedAddr');
+      const fw = document.getElementById('rfFwVer');
+      const state = document.getElementById('rfPairState');
+      const badge = document.getElementById('rfStatusBadge');
+      const pBtn = document.getElementById('rfPairBtn');
+      const sBtn = document.getElementById('rfStopPairBtn');
+      const msg = document.getElementById('rfPairMsg');
+
+      if (st) {
+        if (addr) addr.textContent = st.paired ? (st.rf_address || 'Paired') : 'None';
+        if (fw) fw.textContent = st.fw_version || 'Unknown';
+        if (state) state.textContent = st.pairing_active ? 'PAIRING ACTIVE' : 'IDLE';
+        if (badge) {
+          badge.className = `badge ${st.paired ? 'ok' : 'bad'}`;
+          badge.textContent = st.paired ? 'PAIRED' : 'NOT PAIRED';
+        }
+        if (pBtn) pBtn.style.display = st.pairing_active ? 'none' : 'inline-block';
+        if (sBtn) sBtn.style.display = st.pairing_active ? 'inline-block' : 'none';
+        if (msg) {
+          if (st.pairing_active) {
+            msg.style.display = 'block';
+            msg.textContent = 'Hub pairing active! Press pairing buttons on Elite remote.';
+          } else {
+            msg.style.display = 'none';
+          }
+        }
+      }
+    } catch {
+      const badge = document.getElementById('rfStatusBadge');
+      if (badge) {
+        badge.className = 'badge bad';
+        badge.textContent = 'OFFLINE';
+      }
+    }
+  }
+
+  async pairRfRemote() {
+    try {
+      await this.client.pairRfRemote();
+      await this.refreshRfStatus();
+    } catch (err) {
+      alert('RF Pair failed: ' + err.message);
+    }
+  }
+
+  async stopPairRfRemote() {
+    try {
+      await this.client.stopPairRfRemote();
+      await this.refreshRfStatus();
+    } catch (err) {
+      alert('Stop pair failed: ' + err.message);
+    }
+  }
+
+  async unpairRfRemote() {
+    if (!confirm('Unpair Elite RF remote?')) return;
+    try {
+      await this.client.unpairRfRemote();
+      await this.refreshRfStatus();
+    } catch (err) {
+      alert('Unpair failed: ' + err.message);
     }
   }
 

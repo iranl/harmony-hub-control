@@ -22,6 +22,9 @@
 #define IR_EVENT_LOG "/tmp/ir-events.log"
 #define DEBUG_LOG_CONFIG "/data/codex/debug_logging.conf"
 #define BT_DEBUG_FLAG "/data/codex/bt_remote_debug"
+#define BT_DISABLED_CONFIG "/data/codex/bt_disabled.conf"
+#define RF_DISABLED_CONFIG "/data/codex/rf_disabled.conf"
+#define REBOOT_COUNTER_FILE "/data/codex/reboot_counter"
 
 #define IR_CANCEL_PREFIX "/tmp/codex_ir_cancel_"
 #define BT_TEXT_FIFO "/tmp/bthid_input"

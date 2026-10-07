@@ -11,30 +11,30 @@ saveenv
 boot
 ```
 
+### Serial Bootstrap (`elite/bootstrap_serial.py`)
+To push Dropbear, generate SSH keys, enable USB Ethernet, and install the recovery boot script directly over serial:
+```sh
+pip install pyserial
+python elite/bootstrap_serial.py --port COM3 --ssh-pubkey ~/.ssh/harmony_owner_ed25519.pub
+```
+This utility:
+1. Starts `/usr/bin/usbeth start` on the remote.
+2. Streams base64-encoded static binaries (`dropbear`, `dropbearkey`, `scp`, `codex_sync`) to `/data/`.
+3. Generates Dropbear host keys in `/etc/dropbear/`.
+4. Installs your SSH public key into `/home/root/.ssh/authorized_keys`.
+5. Installs the emergency-recovery boot script `/etc/init.d/rcS.local`.
+6. Starts Dropbear daemon (`/data/dropbear -R -B`).
+
+---
+
 ## USB Ethernet & Dropbear SSH Setup
 Architecture: ARMv5TE little-endian (`armv5tejl`, uClibc-0.9.30.1).
-
-### Remote Configuration
-1. Installed Dropbear static binary (`v2022.82`) in `/data/dropbear` (symlinked to `/usr/sbin/dropbear`).
-2. Installed `dropbearkey` in `/data/dropbearkey`.
-3. Installed `scp` in `/data/scp` (symlinked to `/usr/bin/scp`).
-4. SSH keys generated in `/etc/dropbear/`:
-   - `dropbear_rsa_host_key`
-   - `dropbear_ed25519_host_key`
-5. User public key installed to `/home/root/.ssh/authorized_keys`.
-6. Dropbear starts automatically on boot via `/etc/init.d/rcS.local`:
-```sh
-/usr/bin/usbeth start
-/data/dropbear -R -B
-```
 
 ### Host Connection (PC)
 - **USB Ethernet Interface**: `192.168.2.2 / 24`
 - **Remote IP**: `192.168.2.1`
 - **SSH Access**:
   ```sh
-  ssh elite
-  # or
   ssh -i ~/.ssh/harmony_owner_ed25519 root@192.168.2.1
   ```
 - **SCP File Transfer** (requires legacy `-O` flag):
@@ -42,9 +42,39 @@ Architecture: ARMv5TE little-endian (`armv5tejl`, uClibc-0.9.30.1).
   scp -O file.bin elite:/data/
   ```
 
-## UART-Free Root Vector (USB HID)
-Lessons from Harmony Hub root (`harmony-hub-root`):
-1. **USB Interface**: Elite exposes USB HID (`046d:c129`) managed by `/usr/bin/usbhid` and forwarded to HAL.
-2. **Exploit Primitive**: Path traversal in `harmony.log?put` (`../etc/tdeenable`) writes the developer marker `/etc/tdeenable`.
-3. **Staging**: Unlocks `connect.jsonfiletransfer` (production check disabled by `tdeEnable`).
-4. **Provisioning**: Static ARM binaries from [`elite/bin`](file:///c:/Users/YR/Documents/GitHub/harmony-hub-control/elite/bin) (`dropbear`, `dropbearkey`, `scp`) are staged in `/data/`, and `/etc/init.d/rcS.local` is modified to start USB Ethernet and Dropbear on next boot.
+---
+
+## SSH Deployment Script (`elite/deploy_elite.py` / `deploy_elite.ps1`)
+Once SSH is operational, deploy updated custom firmware (`codex_elite`), tools, and boot scripts:
+```sh
+# Linux/macOS
+python3 elite/deploy_elite.py --ip 192.168.2.1 --key ~/.ssh/harmony_owner_ed25519
+
+# Windows PowerShell
+.\elite\deploy_elite.ps1 -Ip 192.168.2.1 -KeyPath ~/.ssh/harmony_owner_ed25519
+```
+This script uploads:
+- `codex_elite` (custom framebuffer UI & CC2544 RF engine)
+- `codex_sync` (ARM sync helper, symlinked to `/data/sync` and `/usr/bin/sync`)
+- `codex_rf_query` & `codex_rf_sniff`
+- `/etc/init.d/rcS.local` with panic recovery counter
+
+---
+
+## Emergency Recovery (Panic Loop Protection)
+Elite `/etc/init.d/rcS.local` maintains a persistent reboot counter at `/data/reboot_counter`:
+- On boot, counter increments and writes to `/data/reboot_counter`.
+- If uptime reaches **5 minutes (300 seconds)** without crashing, counter resets to `0`.
+- **Safe Mode**: If the device reboots more than **5 consecutive times** before reaching 5-minute stability (`COUNT > 5`), it enters Emergency Recovery Mode:
+  - Enables **only** USB Ethernet (`/usr/bin/usbeth start`) and Dropbear SSH (`/data/dropbear -R -B`).
+  - Logs alert to `/tmp/emergency_recovery.log`.
+  - Exits boot script **without** launching `codex_elite` or any other software.
+  - Allows full SSH root access at `192.168.2.1` to inspect logs, repair files, or reset the counter (`echo 0 > /data/reboot_counter`).
+
+---
+
+## Note on Busybox `sync`
+BusyBox v1.13.4 on both the Hub and Elite remote lacks the `sync` applet. Never run raw `sync` in scripts. Always use:
+```sh
+sync 2>/dev/null || /data/codex_sync 2>/dev/null || /data/sync 2>/dev/null || true
+```
