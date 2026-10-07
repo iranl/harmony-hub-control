@@ -12,6 +12,7 @@ param(
     [string]$MqttDiscoveryPrefix = "homeassistant",
     [string]$MqttClientId = "harmony-local-mqtt",
     [switch]$MqttDisabled,
+    [switch]$SkipBackup,
     [switch]$NoPrompt
 )
 
@@ -322,67 +323,52 @@ if (-not $keepExistingMqtt) {
 }
 
 
-Step "Streaming remote backup to local host"
-$backupDir = Join-Path $ScriptRoot "backups"
-if (-not (Test-Path -LiteralPath $backupDir)) {
-    New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
-}
-$timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$backupFolder = Join-Path $backupDir "hub_backup_$timestamp"
-New-Item -ItemType Directory -Path $backupFolder -Force | Out-Null
+if (-not $SkipBackup) {
+    Step "Streaming remote backup to local host"
+    $backupDir = Join-Path $ScriptRoot "backups"
+    if (-not (Test-Path -LiteralPath $backupDir)) {
+        New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+    }
+    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $backupFolder = Join-Path $backupDir "hub_backup_$timestamp"
+    New-Item -ItemType Directory -Path $backupFolder -Force | Out-Null
 
-$candidatePaths = @(
-    # Boot & runtime scripts
-    "/etc/init.d/rcS.local",
-    "/etc/init.d/rcS",
-    "/data/codex/init.sh",
-    "/data/codex/recovery_ap.sh",
-    "/usr/sbin/dropbear",
-    "/usr/sbin/dropbearkey",
+    $candidatePaths = @(
+        # Boot & runtime scripts only (no large binaries to prevent OOM panic)
+        "/etc/init.d/rcS.local",
+        "/etc/init.d/rcS",
+        "/data/codex/init.sh",
+        "/data/codex/recovery_ap.sh",
+        "/data/codex/network_manager.sh",
 
-    # Active binaries
-    "/data/codex/bin/codex_webui",
-    "/data/codex/bin/codex_daemon",
-    "/data/codex/bin/codex_btstack",
-    "/data/codex/bin/codex_portal",
-    "/data/codex/bin/codex_dhcpd",
-    "/data/codex/bin/codex_sntp",
-    "/data/codex/bin/dropbearmulti",
-    "/data/codex/bin/register_ehci",
-    "/data/codex/bin/mknod",
-    "/data/codex/bin/check_space",
-    "/data/codex/modules/g_serial.ko",
-    "/data/codex/bin/start_usb_eth.sh",
-    "/data/codex/bin/stop_usb_eth.sh",
+        # Core system & network config
+        "/etc/tdeenable",
+        "/etc/nowatchdog",
+        "/etc/version",
+        "/etc/wpa_supplicant.conf",
+        "/home/root/.ssh/authorized_keys",
+        "/etc/dropbear/authorized_keys",
 
-    # Core system & network config
-    "/etc/tdeenable",
-    "/etc/nowatchdog",
-    "/etc/version",
-    "/etc/wpa_supplicant.conf",
-    "/home/root/.ssh/authorized_keys",
-    "/etc/dropbear/authorized_keys",
-    "/etc/dropbear/dropbear_rsa_host_key",
-    "/etc/dropbear/dropbear_dss_host_key",
-    "/etc/dropbear/dropbear_ecdsa_host_key",
+        # Codex configs & state
+        "/data/codexmqtt/config.json",
+        "/data/codex/bt_remote_map.json",
+        "/data/codex/bt_remote_mqtt",
+        "/data/codex/bt_remote_target",
+        "/data/codex/bt-devices.json",
+        "/data/codex/bthid_target",
+        "/data/codex/webui_auth.conf",
+        "/data/codex/debug_logging.conf",
+        "/data/codex/current_activity",
+        "/data/codex/bt_disabled.conf",
+        "/data/codex/rf_disabled.conf",
+        "/data/codex/reboot_counter",
 
-    # Codex configs & state
-    "/data/codexmqtt/config.json",
-    "/data/codex/bt_remote_map.json",
-    "/data/codex/bt_remote_mqtt",
-    "/data/codex/bt_remote_target",
-    "/data/codex/bt-devices.json",
-    "/data/codex/bthid_target",
-    "/data/codex/webui_auth.conf",
-    "/data/codex/debug_logging.conf",
-    "/data/codex/current_activity",
-
-    # Harmony resources & IR database
-    "/data/resources/DeviceList.json",
-    "/data/resources/ActivityList.json",
-    "/data/resources/FunctionList.json",
-    "/data/resources/ProtocolList.json"
-)
+        # Harmony resources & IR database
+        "/data/resources/DeviceList.json",
+        "/data/resources/ActivityList.json",
+        "/data/resources/FunctionList.json",
+        "/data/resources/ProtocolList.json"
+    )
 
 # Dynamically discover additional JSON / config files under /data
 $dynamicCmd = "find /data/resources /data/codex /data/codexmqtt -maxdepth 2 -type f \( -name '*.json' -o -name '*.conf' \) 2>/dev/null || true"
@@ -431,15 +417,16 @@ if (-not $tarSuccess) {
     }
 }
 
-$backupZip = Join-Path $backupDir "hub_backup_$timestamp.zip"
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::CreateFromDirectory($backupFolder, $backupZip)
-Remove-Item -LiteralPath $backupFolder -Recurse -Force
-$backupTar = $backupZip
-Info "backup saved locally: $backupZip ($((Get-Item $backupZip).Length) bytes, $($existingFiles.Count) files)"
+    $backupZip = Join-Path $backupDir "hub_backup_$timestamp.zip"
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($backupFolder, $backupZip)
+    Remove-Item -LiteralPath $backupFolder -Recurse -Force
+    $backupTar = $backupZip
+    Info "backup saved locally: $backupZip ($((Get-Item $backupZip).Length) bytes, $($existingFiles.Count) files)"
+}
 
-# Clean up legacy flash backups, unused test artifacts, and kill running binaries to avoid ETXTBSY
-Invoke-Remote "killall -9 luaworks luadraws lua codex_daemon codex_webui codex_btstack 2>/dev/null || true; rm -rf /data/codex-backups /data/codex/bin/*.tmp-handoff* /data/*.tmp-handoff* /cache/*.log /cache/bin /data/codex/cloud_blocker.conf /data/codex/bt_backend.conf /opt/luaworks/tasks/connectserver/netservicestarter.lua /data/codex/bin/pair_b25.sh /data/codex/bin/do_pair.sh /data/codex/bin/test_ble_diag /data/codex/bin/test_smp /data/codex/bin/test_hci_sniff /data/codex/bin/codex_ir_send /data/codex/bin/codex_webui 2>/dev/null || true" $null 15000 | Out-Null
+# Free memory before uploads: kill heavy processes and touch nowatchdog
+Invoke-Remote "killall -9 luaworks luadraws lua codex_daemon codex_webui codex_btstack 2>/dev/null || true; touch /etc/nowatchdog; rm -rf /data/codex-backups /data/codex/bin/*.tmp-handoff* /data/*.tmp-handoff* /cache/*.log /cache/bin /data/codex/cloud_blocker.conf /data/codex/bt_backend.conf /opt/luaworks/tasks/connectserver/netservicestarter.lua /data/codex/bin/pair_b25.sh /data/codex/bin/do_pair.sh /data/codex/bin/test_ble_diag /data/codex/bin/test_smp /data/codex/bin/test_hci_sniff /data/codex/bin/codex_ir_send /data/codex/bin/codex_webui 2>/dev/null || true" $null 30000 | Out-Null
 
 Step "Uploading binaries"
 if (Test-Path -LiteralPath (Join-Path $Payload "bin\codex_daemon")) {

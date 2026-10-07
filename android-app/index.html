@@ -14,20 +14,11 @@
   <!-- Top App Header -->
   <header class="app-header">
     <div class="top-bar">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <button type="button" class="btn-icon-menu" id="btnOpenDrawer" aria-label="Open Navigation Menu">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
-          </svg>
-        </button>
-        <div class="brand-group">
-          <div class="brand-icon">H</div>
-          <div>
-            <div class="brand-title">Harmony Hub</div>
-            <div style="font-size: 10px; color: var(--text-dim); line-height: 1;">Local console</div>
-          </div>
+      <div class="brand-group">
+        <div class="brand-icon">H</div>
+        <div>
+          <div class="brand-title">Harmony Hub</div>
+          <div style="font-size: 11px; color: var(--text-muted); line-height: 1;">Local console</div>
         </div>
       </div>
 
@@ -64,6 +55,33 @@
       </div>
     </div>
   </header>
+
+  <!-- Hub Offline Alert Banner -->
+  <div id="hubOfflineBanner" class="hub-offline-banner" style="display: none;">
+    <div class="offline-banner-content">
+      <div class="offline-indicator-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="1" y1="1" x2="23" y2="23"></line>
+          <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path>
+          <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path>
+          <path d="M10.71 5.05A16 16 0 0 1 22.58 9"></path>
+          <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path>
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+          <line x1="12" y1="20" x2="12.01" y2="20"></line>
+        </svg>
+      </div>
+      <div class="offline-banner-text">
+        <strong id="offlineBannerTitle">Hub Offline</strong>
+        <span id="offlineBannerDesc" class="offline-subtext">Cannot reach hub. Reconnecting automatically...</span>
+      </div>
+    </div>
+    <div class="offline-banner-actions">
+      <button type="button" class="btn btn-sm btn-retry-conn" id="btnRetryConn">
+        <span class="retry-spinner" id="retrySpinner" style="display: none;">⟳</span>
+        <span id="btnRetryConnLabel">Retry Connection</span>
+      </button>
+    </div>
+  </div>
 
   <!-- Side Navigation Drawer (Full Options) -->
   <div class="drawer-backdrop" id="drawerBackdrop"></div>
@@ -187,49 +205,9 @@
           <div id="dashUpdateDetail" class="muted mini">-</div>
         </div>
       </div>
-
-      <div class="quick-actions-title">Quick Actions</div>
-      <div class="quick-actions-grid">
-        <button type="button" class="quick-action-btn" data-view-target="activities">
-          <strong>Activities</strong>
-          <small class="muted">Run activities, edit start/stop sequences</small>
-        </button>
-        <button type="button" class="quick-action-btn" data-view-target="control">
-          <strong>Use a Remote</strong>
-          <small class="muted">Send buttons from tactile skin or command list</small>
-        </button>
-        <button type="button" class="quick-action-btn" data-view-target="ir">
-          <strong>Add or Edit Remotes</strong>
-          <small class="muted">Create devices, search databases, learn buttons</small>
-        </button>
-        <button type="button" class="quick-action-btn" data-view-target="lab">
-          <strong>Bulk Test IR Codes</strong>
-          <small class="muted">Search code files & queue tests</small>
-        </button>
-        <button type="button" class="quick-action-btn" data-view-target="bluetooth">
-          <strong>Bluetooth Keyboard</strong>
-          <small class="muted">Control PC/Shield with keyboard & macros</small>
-        </button>
-        <button type="button" class="quick-action-btn" data-view-target="remotes">
-          <strong>Physical BT Remote</strong>
-          <small class="muted">Map Homatics B25 buttons per activity</small>
-        </button>
-        <button type="button" class="quick-action-btn" data-view-target="mqtt">
-          <strong>Home Assistant MQTT</strong>
-          <small class="muted">Configure broker, discovery & topics</small>
-        </button>
-        <button type="button" class="quick-action-btn" data-view-target="network">
-          <strong>Network Settings</strong>
-          <small class="muted">Configure Wi-Fi, Ethernet & serial console</small>
-        </button>
-        <button type="button" class="quick-action-btn" data-view-target="backup">
-          <strong>Back Up Settings</strong>
-          <small class="muted">Download or restore configuration bundle</small>
-        </button>
-      </div>
     </section>
 
-    <!-- 3. Activities View (Run, Sequence Builder & Delay Timeline) -->
+    <!-- 3. Activities View (Sequence Builder & Delay Timeline) -->
     <section id="view-activities" class="view-panel">
       <div class="section-head">
         <div>
@@ -239,7 +217,6 @@
         <div class="actions" style="margin-top: 0;">
           <button type="button" id="actRefreshBtn" class="btn btn-sm btn-ghost">Refresh</button>
           <button type="button" id="actNewBtn" class="btn btn-sm btn-primary">+ New Activity</button>
-          <button type="button" id="actPowerOffBtn" class="btn btn-sm btn-danger">Power Off Hub</button>
         </div>
       </div>
 
@@ -481,21 +458,22 @@
               <input id="irdbPath" class="form-control" placeholder="Samsung/TV/7,7.csv or raw URL">
             </div>
 
-            <div style="margin-top: 10px;">
-              <label for="irdbPaste">Paste IR Codes or File Contents</label>
-              <textarea id="irdbPaste" class="form-control" rows="3" placeholder="Paste Flipper .ir, LIRC, Pronto Hex, Global Cache, or JSON"></textarea>
-            </div>
-
-            <div class="row" style="margin-top: 10px;">
-              <div>
-                <label for="irdbPrefix">Command Name Prefix</label>
-                <input id="irdbPrefix" class="form-control" placeholder="TV ">
+            <details style="margin-top: 10px;">
+              <summary style="font-size: 12px; color: var(--text-dim); cursor: pointer;">Paste IR codes or upload file directly</summary>
+              <div style="margin-top: 8px;">
+                <textarea id="irdbPaste" class="form-control" rows="2" placeholder="Paste Flipper .ir, LIRC, Pronto Hex, Global Cache, or JSON"></textarea>
+                <div class="row" style="margin-top: 8px;">
+                  <div>
+                    <label for="irdbPrefix">Command Name Prefix</label>
+                    <input id="irdbPrefix" class="form-control" placeholder="TV ">
+                  </div>
+                  <div>
+                    <label for="irdbFile">Upload File</label>
+                    <input id="irdbFile" type="file" class="form-control" accept=".ir,.conf,.lircd,.lirc,.txt,.xml,.girr,.irc,.csv,.json">
+                  </div>
+                </div>
               </div>
-              <div>
-                <label for="irdbFile">Upload File</label>
-                <input id="irdbFile" type="file" class="form-control" accept=".ir,.conf,.lircd,.lirc,.txt,.xml,.girr,.irc,.csv,.json">
-              </div>
-            </div>
+            </details>
 
             <textarea id="irdbPayload" style="display: none;"></textarea>
             <div id="irdbStatus" class="subtle" style="margin-top: 8px;"></div>
@@ -507,7 +485,10 @@
               <button id="irdbParsePaste" type="button" class="btn btn-sm btn-secondary">Parse Pasted Codes</button>
               <button id="irdbSaveBtn" type="button" class="btn btn-sm btn-primary">Save Selected Commands</button>
             </div>
-            <pre id="irdbLog" class="mini" style="margin-top: 10px; max-height: 120px;">Ready.</pre>
+            <details style="margin-top: 8px;">
+              <summary style="font-size: 11px; color: var(--text-dim);">Database Log</summary>
+              <pre id="irdbLog" class="mini" style="margin-top: 4px; max-height: 100px;">Ready.</pre>
+            </details>
           </form>
         </div>
       </div>
@@ -865,52 +846,55 @@
         </div>
       </div>
 
-      <!-- Type Text & Script Studio Grid -->
-      <div class="row">
-        <!-- Type Text -->
-        <div class="card">
-          <h3 style="font-size: 15px; margin-bottom: 6px;">Type Text</h3>
-          <div class="help">Send text strings or URLs directly to host.</div>
-          <textarea id="btDirectText" class="form-control" rows="3" style="margin-top: 8px;" placeholder="Type text to send..."></textarea>
-          <div class="actions" style="margin-top: 8px;">
-            <button id="btSendTextBtn" type="button" class="btn btn-sm btn-primary">Send Text</button>
-            <button id="btClearTextBtn" type="button" class="btn btn-sm btn-ghost">Clear</button>
-            <span id="btTextStatus" class="subtle" style="margin-left: 8px;"></span>
-          </div>
-        </div>
-
-        <!-- Macro Script Studio -->
-        <div class="card">
-          <h3 style="font-size: 15px; margin-bottom: 6px;">Macro Script Studio</h3>
-          <div class="help">Run sequence of keys & delays. Format: <code>TEXT &lt;words&gt;</code>, <code>KEY &lt;name&gt;</code>, <code>WAIT &lt;ms&gt;</code>, <code>COMBO &lt;ctrl+c&gt;</code>.</div>
-          <textarea id="btMacroScript" class="form-control" rows="3" style="margin-top: 8px; font-family: monospace;" placeholder="TEXT hello&#10;WAIT 300&#10;KEY enter"></textarea>
-          <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
-            <label style="margin: 0; white-space: nowrap;">Delay (ms):</label>
-            <input id="btScriptDelay" type="number" class="form-control" style="width: 70px;" value="35">
-            <button id="btRunScriptBtn" type="button" class="btn btn-sm btn-primary">Run Script</button>
-            <button id="btStopScriptBtn" type="button" class="btn btn-sm btn-danger" disabled>Stop</button>
-          </div>
-          <div id="btScriptStatus" class="subtle" style="margin-top: 4px;"></div>
-
-          <div style="border-top: 1px solid var(--border); margin-top: 10px; padding-top: 8px;">
-            <h4 style="font-size: 13px; margin-bottom: 6px;">Save as Device Command</h4>
-            <div class="row">
-              <select id="btSaveDeviceSelect" class="form-control"></select>
-              <input id="btSaveCommandName" class="form-control" placeholder="Command name">
-            </div>
+      <!-- Type Text & Script Studio (Collapsible on Mobile) -->
+      <details class="card" style="margin-top: 14px;">
+        <summary style="font-size: 14px; font-weight: 700; color: var(--text-main);">Type Text & Macro Studio</summary>
+        <div style="margin-top: 12px;">
+          <!-- Type Text -->
+          <div style="margin-bottom: 14px;">
+            <h4 style="font-size: 13px; margin-bottom: 4px;">Type Text</h4>
+            <div class="help">Send text directly to host.</div>
+            <textarea id="btDirectText" class="form-control" rows="2" style="margin-top: 6px;" placeholder="Type text to send..."></textarea>
             <div class="actions" style="margin-top: 8px;">
-              <button id="btSaveCommandBtn" type="button" class="btn btn-sm btn-secondary">Save Command</button>
-              <span id="btSaveCommandStatus" class="subtle" style="margin-left: 8px;"></span>
+              <button id="btSendTextBtn" type="button" class="btn btn-sm btn-primary">Send Text</button>
+              <button id="btClearTextBtn" type="button" class="btn btn-sm btn-ghost">Clear</button>
+              <span id="btTextStatus" class="subtle" style="margin-left: 8px;"></span>
+            </div>
+          </div>
+
+          <!-- Macro Script Studio -->
+          <div style="border-top: 1px solid var(--border); padding-top: 12px;">
+            <h4 style="font-size: 13px; margin-bottom: 4px;">Macro Script Studio</h4>
+            <div class="help">Format: <code>TEXT words</code>, <code>KEY name</code>, <code>WAIT ms</code>.</div>
+            <textarea id="btMacroScript" class="form-control" rows="2" style="margin-top: 6px; font-family: monospace;" placeholder="TEXT hello&#10;WAIT 300&#10;KEY enter"></textarea>
+            <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+              <label style="margin: 0; white-space: nowrap;">Delay (ms):</label>
+              <input id="btScriptDelay" type="number" class="form-control" style="width: 70px;" value="35">
+              <button id="btRunScriptBtn" type="button" class="btn btn-sm btn-primary">Run Script</button>
+              <button id="btStopScriptBtn" type="button" class="btn btn-sm btn-danger" disabled>Stop</button>
+            </div>
+            <div id="btScriptStatus" class="subtle" style="margin-top: 4px;"></div>
+
+            <div style="border-top: 1px solid var(--border); margin-top: 10px; padding-top: 8px;">
+              <h5 style="font-size: 12px; margin-bottom: 6px;">Save as Device Command</h5>
+              <div class="row">
+                <select id="btSaveDeviceSelect" class="form-control"></select>
+                <input id="btSaveCommandName" class="form-control" placeholder="Command name">
+              </div>
+              <div class="actions" style="margin-top: 8px;">
+                <button id="btSaveCommandBtn" type="button" class="btn btn-sm btn-secondary">Save Command</button>
+                <span id="btSaveCommandStatus" class="subtle" style="margin-left: 8px;"></span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </details>
 
-      <!-- Saved BT Commands & Devices -->
-      <div class="card" style="margin-top: 14px;">
-        <h3 style="font-size: 15px; margin-bottom: 6px;">Saved Bluetooth Devices & Commands</h3>
-        <div id="btSavedDevicesList"><div class="muted mini">No saved commands.</div></div>
-      </div>
+      <!-- Saved BT Commands & Devices (Collapsible on Mobile) -->
+      <details class="card" style="margin-top: 10px;">
+        <summary style="font-size: 14px; font-weight: 700; color: var(--text-main);">Saved Bluetooth Devices & Commands</summary>
+        <div id="btSavedDevicesList" style="margin-top: 10px;"><div class="muted mini">No saved commands.</div></div>
+      </details>
 
       <!-- Diagnostics Log -->
       <details style="margin-top: 14px;">
@@ -1330,11 +1314,11 @@
         </form>
       </div>
 
-      <!-- Home Assistant Supported Topics Card -->
-      <div class="card">
-        <h3 style="font-size: 15px; margin-bottom: 6px;">Home Assistant Integration Topics</h3>
-        <div class="help">Send commands, change channels, and sync activities with the same parameters as official Home Assistant integration (aioharmony).</div>
-        <pre id="mqttTopicsGuide" class="mini" style="margin-top: 8px; font-family: monospace;">
+      <!-- Home Assistant Supported Topics Card (Collapsible) -->
+      <details class="card" style="margin-top: 10px;">
+        <summary style="font-size: 13px; font-weight: 700; color: var(--accent);">Home Assistant Integration Topics</summary>
+        <div class="help" style="margin-top: 8px;">Standard Home Assistant (aioharmony) topics for hub automation:</div>
+        <pre id="mqttTopicsGuide" class="mini" style="margin-top: 6px; font-family: monospace;">
 Send Command:    {baseTopic}/send_command
 Change Channel:  {baseTopic}/channel/set
 Hub Sync:        {baseTopic}/sync
@@ -1342,7 +1326,7 @@ Set Activity:    {baseTopic}/activity/set
 Full Catalog:    {baseTopic}/config (retained)
 Hub State:       {baseTopic}/state (retained)
         </pre>
-      </div>
+      </details>
     </section>
 
     <!-- 10. Network View (Wi-Fi, USB Ethernet & Root Serial Console) -->
@@ -1505,10 +1489,12 @@ Hub State:       {baseTopic}/state (retained)
             <input id="importFile" type="file" class="form-control">
           </div>
 
-          <div style="margin-top: 10px;">
-            <label for="backupPayload">Backup Contents</label>
-            <textarea id="backupPayload" class="form-control" rows="5" style="font-family: monospace; font-size: 11px;" placeholder="Paste JSON or config payload here..."></textarea>
-          </div>
+          <details style="margin-top: 10px;">
+            <summary style="font-size: 12px; color: var(--text-dim); cursor: pointer;">Or paste backup JSON / config text</summary>
+            <div style="margin-top: 8px;">
+              <textarea id="backupPayload" class="form-control" rows="4" style="font-family: monospace; font-size: 11px;" placeholder="Paste JSON or config payload here..."></textarea>
+            </div>
+          </details>
 
           <div class="actions" style="margin-top: 12px;">
             <button id="btnRestoreBackup" type="button" class="btn btn-sm btn-primary">Restore Backup</button>
@@ -1636,52 +1622,32 @@ Hub State:       {baseTopic}/state (retained)
 
   </main>
 
-  <!-- Bottom Navigation Bar (Core Touch Actions) -->
+  <!-- Bottom Navigation Bar (Activity, Device, More) -->
   <nav class="app-nav">
     <button type="button" class="nav-item active" data-tab="activity-remote">
-      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="5" y="2" width="14" height="20" rx="3"></rect>
-        <circle cx="12" cy="7" r="1"></circle>
-        <circle cx="12" cy="12" r="2"></circle>
-        <path d="M10 17h4"></path>
+      <svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="5 3 19 12 5 21 5 3"></polygon>
       </svg>
-      <span>Remote</span>
+      <span>Activity</span>
     </button>
 
     <button type="button" class="nav-item" data-tab="control">
-      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="7" y="2" width="10" height="20" rx="2"></rect>
+      <svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="6" y="2" width="12" height="20" rx="3"></rect>
         <line x1="10" y1="6" x2="14" y2="6"></line>
         <line x1="10" y1="10" x2="14" y2="10"></line>
-        <line x1="10" y1="14" x2="14" y2="14"></line>
-        <circle cx="12" cy="18" r="1"></circle>
+        <circle cx="12" cy="16" r="1.5"></circle>
       </svg>
       <span>Device</span>
     </button>
 
-    <button type="button" class="nav-item" data-tab="activities">
-      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polygon points="5 3 19 12 5 21 5 3"></polygon>
-      </svg>
-      <span>Activities</span>
-    </button>
-
-    <button type="button" class="nav-item" data-tab="ir">
-      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M2 12h20"></path>
-        <path d="M20 12l-4-4"></path>
-        <path d="M20 12l-4 4"></path>
-      </svg>
-      <span>IR Setup</span>
-    </button>
-
     <button type="button" class="nav-item" id="navItemMore">
-      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="1"></circle>
-        <circle cx="19" cy="12" r="1"></circle>
-        <circle cx="5" cy="12" r="1"></circle>
+      <svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <line x1="4" y1="7" x2="20" y2="7"></line>
+        <line x1="4" y1="12" x2="20" y2="12"></line>
+        <line x1="4" y1="17" x2="20" y2="17"></line>
       </svg>
-      <span>More ☰</span>
+      <span>More</span>
     </button>
   </nav>
 

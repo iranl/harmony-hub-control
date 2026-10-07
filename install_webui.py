@@ -111,6 +111,7 @@ class Installer:
         self.args = args
         self.key_path = Path(args.key_path).expanduser().resolve()
         self.keep_existing_mqtt = False
+        self.backup_tar: Path | None = None
         self._connected = False
 
 
@@ -253,116 +254,104 @@ class Installer:
     def run(self) -> None:
         self.check_connection()
 
-        step("Streaming remote backup to local host")
-        backup_dir = ROOT / "backups"
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
-        backup_tar = backup_dir / f"hub_backup_{timestamp}.tar"
-        self.backup_tar = backup_tar
+        if not self.args.skip_backup:
+            step("Streaming remote backup to local host")
+            backup_dir = ROOT / "backups"
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = time.strftime("%Y%m%d-%H%M%S")
+            backup_tar = backup_dir / f"hub_backup_{timestamp}.tar"
+            self.backup_tar = backup_tar
 
-        import io
-        import tarfile
+            import io
+            import tarfile
 
-        candidate_paths = [
-            # Boot & runtime scripts
-            "/etc/init.d/rcS.local",
-            "/etc/init.d/rcS",
-            "/data/codex/init.sh",
-            "/data/codex/recovery_ap.sh",
-            "/usr/sbin/dropbear",
-            "/usr/sbin/dropbearkey",
+            candidate_paths = [
+                # Boot & runtime scripts only (no large binaries to prevent OOM panic)
+                "/etc/init.d/rcS.local",
+                "/etc/init.d/rcS",
+                "/data/codex/init.sh",
+                "/data/codex/recovery_ap.sh",
+                "/data/codex/network_manager.sh",
 
-            # Active binaries
-            "/data/codex/bin/codex_webui",
-            "/data/codex/bin/codex_daemon",
-            "/data/codex/bin/codex_btstack",
-            "/data/codex/bin/codex_portal",
-            "/data/codex/bin/codex_dhcpd",
-            "/data/codex/bin/codex_sntp",
-            "/data/codex/bin/dropbearmulti",
-            "/data/codex/bin/register_ehci",
-            "/data/codex/bin/mknod",
-            "/data/codex/modules/g_serial.ko",
-            "/data/codex/bin/start_usb_eth.sh",
-            "/data/codex/bin/stop_usb_eth.sh",
+                # Core system & network config
+                "/etc/tdeenable",
+                "/etc/nowatchdog",
+                "/etc/version",
+                "/etc/wpa_supplicant.conf",
+                "/home/root/.ssh/authorized_keys",
+                "/etc/dropbear/authorized_keys",
 
-            # Core system & network config
-            "/etc/tdeenable",
-            "/etc/nowatchdog",
-            "/etc/version",
-            "/etc/wpa_supplicant.conf",
-            "/home/root/.ssh/authorized_keys",
-            "/etc/dropbear/authorized_keys",
-            "/etc/dropbear/dropbear_rsa_host_key",
-            "/etc/dropbear/dropbear_dss_host_key",
-            "/etc/dropbear/dropbear_ecdsa_host_key",
+                # Codex configs & state
+                "/data/codexmqtt/config.json",
+                "/data/codex/bt_remote_map.json",
+                "/data/codex/bt_remote_mqtt",
+                "/data/codex/bt_remote_target",
+                "/data/codex/bt-devices.json",
+                "/data/codex/bthid_target",
+                "/data/codex/webui_auth.conf",
+                "/data/codex/debug_logging.conf",
+                "/data/codex/current_activity",
+                "/data/codex/bt_disabled.conf",
+                "/data/codex/rf_disabled.conf",
+                "/data/codex/reboot_counter",
 
-            # Codex configs & state
-            "/data/codexmqtt/config.json",
-            "/data/codex/bt_remote_map.json",
-            "/data/codex/bt_remote_mqtt",
-            "/data/codex/bt_remote_target",
-            "/data/codex/bt-devices.json",
-            "/data/codex/bthid_target",
-            "/data/codex/webui_auth.conf",
-            "/data/codex/debug_logging.conf",
-            "/data/codex/current_activity",
+                # Harmony resources & IR database
+                "/data/resources/DeviceList.json",
+                "/data/resources/ActivityList.json",
+                "/data/resources/FunctionList.json",
+                "/data/resources/ProtocolList.json",
+            ]
 
-            # Harmony resources & IR database
-            "/data/resources/DeviceList.json",
-            "/data/resources/ActivityList.json",
-            "/data/resources/FunctionList.json",
-            "/data/resources/ProtocolList.json",
-        ]
+            dynamic_cmd = "find /data/resources /data/codex /data/codexmqtt -maxdepth 2 -type f \\( -name '*.json' -o -name '*.conf' \\) 2>/dev/null || true"
+            discovered = [p.strip() for p in self.run_remote(dynamic_cmd, timeout=15, quiet=True).splitlines() if p.strip()]
+            all_candidates = list(dict.fromkeys(candidate_paths + discovered))
 
-        dynamic_cmd = "find /data/resources /data/codex /data/codexmqtt -maxdepth 2 -type f \\( -name '*.json' -o -name '*.conf' \\) 2>/dev/null || true"
-        discovered = [p.strip() for p in self.run_remote(dynamic_cmd, timeout=15, quiet=True).splitlines() if p.strip()]
-        all_candidates = list(dict.fromkeys(candidate_paths + discovered))
+            check_script = "for f in " + " ".join(remote_quote(f) for f in all_candidates) + "; do test -f \"$f\" && echo \"$f\"; done"
+            existing_files = [p.strip() for p in self.run_remote(check_script, timeout=30, quiet=True).splitlines() if p.strip()]
+            info(f"found {len(existing_files)} files on hub to backup (configs and scripts)")
 
-        check_script = "for f in " + " ".join(remote_quote(f) for f in all_candidates) + "; do test -f \"$f\" && echo \"$f\"; done"
-        existing_files = [p.strip() for p in self.run_remote(check_script, timeout=30, quiet=True).splitlines() if p.strip()]
-        info(f"found {len(existing_files)} files on hub to backup (binaries, scripts, and configuration)")
+            tar_success = False
+            if existing_files:
+                tar_remote = "tar -cf - " + " ".join(remote_quote(f) for f in existing_files) + " 2>/dev/null"
+                proc = subprocess.run(
+                    self.ssh_base_args() + [tar_remote],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=90,
+                    check=False,
+                )
+                if proc.returncode == 0 and len(proc.stdout) >= 1024:
+                    backup_tar.write_bytes(proc.stdout)
+                    tar_success = True
 
-        tar_success = False
-        if existing_files:
-            tar_remote = "tar -cf - " + " ".join(remote_quote(f) for f in existing_files) + " 2>/dev/null"
-            proc = subprocess.run(
-                self.ssh_base_args() + [tar_remote],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=90,
-                check=False,
-            )
-            if proc.returncode == 0 and len(proc.stdout) >= 1024:
-                backup_tar.write_bytes(proc.stdout)
-                tar_success = True
+            if not tar_success:
+                with tarfile.open(backup_tar, "w") as tar:
+                    for rpath in existing_files:
+                        cmd = f"test -f {remote_quote(rpath)} && cat {remote_quote(rpath)} || true"
+                        proc = subprocess.run(
+                            self.ssh_base_args() + [cmd],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            timeout=30,
+                            check=False,
+                        )
+                        if proc.stdout:
+                            ti = tarfile.TarInfo(name=rpath.lstrip("/"))
+                            ti.size = len(proc.stdout)
+                            ti.mtime = int(time.time())
+                            ti.mode = 0o644
+                            tar.addfile(ti, io.BytesIO(proc.stdout))
 
-        if not tar_success:
-            with tarfile.open(backup_tar, "w") as tar:
-                for rpath in existing_files:
-                    cmd = f"test -f {remote_quote(rpath)} && cat {remote_quote(rpath)} || true"
-                    proc = subprocess.run(
-                        self.ssh_base_args() + [cmd],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        timeout=30,
-                        check=False,
-                    )
-                    if proc.stdout:
-                        ti = tarfile.TarInfo(name=rpath.lstrip("/"))
-                        ti.size = len(proc.stdout)
-                        ti.mtime = int(time.time())
-                        ti.mode = 0o644
-                        tar.addfile(ti, io.BytesIO(proc.stdout))
+            info(f"backup saved locally: {backup_tar} ({backup_tar.stat().st_size} bytes, {len(existing_files)} files)")
 
-        info(f"backup saved locally: {backup_tar} ({backup_tar.stat().st_size} bytes, {len(existing_files)} files)")
-        # Clean up legacy flash backups and unused test artifacts on hub
+        # Free memory and clean up before uploads to prevent OOM
         self.run_remote(
+            "killall -9 luaworks luadraws lua codex_daemon codex_webui codex_btstack 2>/dev/null || true; touch /etc/nowatchdog; "
             "rm -rf /data/codex-backups /data/codex/bin/*.tmp-handoff* /data/*.tmp-handoff* "
             "/cache/*.log /cache/bin /data/codex/cloud_blocker.conf /data/codex/bt_backend.conf /opt/luaworks/tasks/connectserver/netservicestarter.lua /data/codex/bin/pair_b25.sh /data/codex/bin/do_pair.sh "
             "/data/codex/bin/test_ble_diag /data/codex/bin/test_smp /data/codex/bin/test_hci_sniff "
             "/data/codex/bin/codex_ir_send 2>/dev/null || true",
-            timeout=15,
+            timeout=30,
             quiet=True,
         )
 
@@ -502,6 +491,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--mqtt-discovery-prefix", default="homeassistant", help="Home Assistant MQTT discovery prefix")
     parser.add_argument("--mqtt-client-id", default="harmony-local-mqtt", help="MQTT client ID")
     parser.add_argument("--mqtt-disabled", action="store_true", help="Install with MQTT disabled")
+    parser.add_argument("--skip-backup", action="store_true", help="Skip remote backup step before installing")
     parser.add_argument("--no-prompt", action="store_true", help="Fail instead of asking for missing required values")
     return parser.parse_args(argv)
 

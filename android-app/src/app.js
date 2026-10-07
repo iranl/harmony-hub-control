@@ -33,6 +33,7 @@ class HarmonyApp {
     this.labQueue = [];
     this.labRunning = false;
     this.labRunId = null;
+    this.autoReconnectTimer = null;
 
     this.setupWebSocket();
   }
@@ -41,6 +42,10 @@ class HarmonyApp {
     this.isHubOnline = Boolean(online);
     const dot = document.getElementById('activeHubStatusDot');
     const hubBtn = document.getElementById('hubSelectorBtn');
+    const banner = document.getElementById('hubOfflineBanner');
+    const desc = document.getElementById('offlineBannerDesc');
+    const content = document.querySelector('.app-content');
+
     if (dot) {
       dot.className = online ? 'hub-status-dot online' : 'hub-status-dot offline';
       dot.title = online ? 'Hub is online' : 'Hub is offline';
@@ -48,6 +53,72 @@ class HarmonyApp {
     if (hubBtn) {
       const name = this.activeHub ? this.activeHub.name : 'Hub';
       hubBtn.title = `${name}: ${online ? 'Online' : 'Offline'} (Tap to manage hubs)`;
+    }
+    if (banner) {
+      banner.style.display = online ? 'none' : 'flex';
+      if (!online && this.activeHub && desc) {
+        desc.textContent = `Cannot reach hub at ${this.activeHub.host || 'specified address'}. Reconnecting...`;
+      }
+    }
+    if (content) {
+      content.classList.toggle('hub-offline-disabled', !online);
+    }
+
+    if (!online) {
+      this.ensureAutoReconnect();
+    } else {
+      this.stopAutoReconnect();
+    }
+  }
+
+  ensureAutoReconnect() {
+    if (this.autoReconnectTimer) return;
+    this.autoReconnectTimer = setInterval(() => {
+      if (!this.isHubOnline && this.activeHub) {
+        this.recheckConnection(false);
+      }
+    }, 4000);
+  }
+
+  stopAutoReconnect() {
+    if (this.autoReconnectTimer) {
+      clearInterval(this.autoReconnectTimer);
+      this.autoReconnectTimer = null;
+    }
+  }
+
+  async recheckConnection(manual = false) {
+    const btn = document.getElementById('btnRetryConn');
+    const label = document.getElementById('btnRetryConnLabel');
+    const spinner = document.getElementById('retrySpinner');
+
+    if (manual) {
+      if (btn) btn.disabled = true;
+      if (spinner) spinner.style.display = 'inline-block';
+      if (label) label.textContent = 'Connecting...';
+    }
+
+    try {
+      if (this.activeHub) {
+        this.client.updateHub(this.activeHub);
+      }
+      await this.refreshData();
+      if (manual && this.isHubOnline) {
+        if (label) label.textContent = 'Connected!';
+      }
+    } catch (err) {
+      const desc = document.getElementById('offlineBannerDesc');
+      if (desc && this.activeHub) {
+        desc.textContent = `Hub unreachable (${this.activeHub.host}): ${err.message || 'Offline'}`;
+      }
+    } finally {
+      if (manual) {
+        setTimeout(() => {
+          if (btn) btn.disabled = false;
+          if (spinner) spinner.style.display = 'none';
+          if (label) label.textContent = 'Retry Connection';
+        }, 1000);
+      }
     }
   }
 
@@ -107,6 +178,9 @@ class HarmonyApp {
     if (btnCloseDrawer) btnCloseDrawer.addEventListener('click', () => toggleDrawer(false));
     if (drawerBackdrop) drawerBackdrop.addEventListener('click', () => toggleDrawer(false));
 
+    // Offline Banner Retry Button
+    document.getElementById('btnRetryConn')?.addEventListener('click', () => this.recheckConnection(true));
+
     // Bottom Navigation Items
     document.querySelectorAll('.app-nav .nav-item').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -159,9 +233,14 @@ class HarmonyApp {
 
           try {
             await this.client.stopActivity();
+            this.activitiesData.currentId = '-1';
+            this.activitiesData.currentName = 'PowerOff';
+            this.activitiesData.isTransitioning = false;
           } catch (err) {
             console.warn('Power off error:', err);
           }
+          this.updateActivityBanner();
+          await this.renderActivityRemote();
           await this.refreshActivityState();
         }
       });
@@ -191,7 +270,6 @@ class HarmonyApp {
 
     // Activities Actions
     document.getElementById('actRefreshBtn')?.addEventListener('click', () => this.loadActivitiesView());
-    document.getElementById('actPowerOffBtn')?.addEventListener('click', () => this.client.stopActivity());
     document.getElementById('actNewBtn')?.addEventListener('click', () => this.openActivityEditor(null));
     document.getElementById('actEditorCloseBtn')?.addEventListener('click', () => {
       const box = document.getElementById('actEditorBox');
@@ -502,22 +580,43 @@ class HarmonyApp {
     const listEl = document.getElementById('bannerActivitiesList');
     if (!listEl) return;
 
-    const acts = this.activitiesData.activities || [];
+    // Filter out extraneous Power Off activity (id = -1 or named PowerOff)
+    const acts = (this.activitiesData.activities || []).filter(a => {
+      const idStr = String(a.id || '');
+      const nameStr = (a.name || a.label || '').toLowerCase().replace(/[\s_-]/g, '');
+      return idStr !== '-1' && idStr !== '-1.0' && a.id !== -1 && nameStr !== 'poweroff';
+    });
     const curId = String(this.activitiesData.currentId || '-1');
+    const curName = (this.activitiesData.currentName || '').toLowerCase().replace(/[\s_-]/g, '');
+    const isOff = curId === '-1' || curId === '0' || !curId || curName === 'poweroff';
+
+    const pwrBtn = document.getElementById('btnBannerPowerOff');
+    if (pwrBtn) {
+      pwrBtn.classList.toggle('active', isOff);
+      pwrBtn.classList.toggle('btn-primary', isOff);
+      pwrBtn.classList.toggle('btn-danger', !isOff);
+      pwrBtn.title = isOff ? 'Hub is currently Powered Off' : 'Power off all devices';
+    }
 
     listEl.innerHTML = acts.map(a => {
-      const isActive = String(a.id) === curId;
+      const isActive = !isOff && String(a.id) === curId;
       return `<button type="button" class="btn btn-xs ${isActive ? 'btn-primary' : 'btn-secondary'} banner-activity-btn ${isActive ? 'active' : ''}" data-act-id="${a.id}">${a.name || a.label}</button>`;
     }).join('');
 
     listEl.querySelectorAll('.banner-activity-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-act-id');
-        if (id === curId) return;
+        if (!isOff && id === curId) return;
         await this.remoteEngine.triggerHaptic();
         btn.classList.add('btn-switching');
         try {
           await this.client.startActivity(id);
+          this.activitiesData.currentId = id;
+          const aObj = acts.find(x => String(x.id) === String(id));
+          if (aObj) this.activitiesData.currentName = aObj.name || aObj.label;
+          this.updateActivityBanner();
+          await this.refreshActivityState();
+          await this.renderActivityRemote();
         } catch (err) {
           alert('Failed to start activity: ' + err.message);
         } finally {
@@ -535,15 +634,24 @@ class HarmonyApp {
     if (!cont) return;
 
     const curId = String(this.activitiesData.currentId || '-1');
-    const curAct = (this.activitiesData.activities || []).find(a => String(a.id) === curId);
+    const curName = (this.activitiesData.currentName || '').toLowerCase().replace(/[\s_-]/g, '');
+    const isOff = curId === '-1' || curId === '0' || !curId || curName === 'poweroff';
 
-    if (!curAct || curId === '-1') {
+    const curAct = !isOff ? (this.activitiesData.activities || []).find(a => String(a.id) === curId) : null;
+
+    if (isOff || !curAct) {
+      const realActs = (this.activitiesData.activities || []).filter(a => {
+        const idStr = String(a.id || '');
+        const nameStr = (a.name || a.label || '').toLowerCase().replace(/[\s_-]/g, '');
+        return idStr !== '-1' && idStr !== '-1.0' && a.id !== -1 && nameStr !== 'poweroff';
+      });
+
       cont.innerHTML = `
         <div class="card" style="text-align: center; padding: 32px 16px;">
           <h3 style="font-size: 16px; margin-bottom: 8px;">Hub is in PowerOff State</h3>
           <p class="muted" style="font-size: 13px; margin-bottom: 16px;">Select an activity from the top banner to turn on devices and use the remote.</p>
           <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-            ${(this.activitiesData.activities || []).map(a => `
+            ${realActs.map(a => `
               <button type="button" class="btn btn-sm btn-primary btn-start-act-idle" data-act-id="${a.id}">Start ${a.name || a.label}</button>
             `).join('')}
           </div>
@@ -551,8 +659,15 @@ class HarmonyApp {
       `;
       cont.querySelectorAll('.btn-start-act-idle').forEach(b => {
         b.addEventListener('click', async () => {
-          await this.client.startActivity(b.getAttribute('data-act-id'));
+          const actId = b.getAttribute('data-act-id');
+          await this.remoteEngine.triggerHaptic();
+          await this.client.startActivity(actId);
+          this.activitiesData.currentId = actId;
+          const aObj = realActs.find(x => String(x.id) === String(actId));
+          if (aObj) this.activitiesData.currentName = aObj.name || aObj.label;
+          this.updateActivityBanner();
           await this.refreshActivityState();
+          await this.renderActivityRemote();
         });
       });
       return;
@@ -629,39 +744,40 @@ class HarmonyApp {
     const grid = document.getElementById('actGrid');
     if (!grid) return;
 
-    const acts = this.activitiesData.activities || [];
+    // Filter out PowerOff from configured activities
+    const acts = (this.activitiesData.activities || []).filter(a => {
+      const idStr = String(a.id || '');
+      const nameStr = (a.name || a.label || '').toLowerCase().replace(/[\s_-]/g, '');
+      return idStr !== '-1' && idStr !== '-1.0' && a.id !== -1 && nameStr !== 'poweroff';
+    });
+
     if (!acts.length) {
       grid.innerHTML = '<div class="muted">No configured activities found.</div>';
       return;
     }
 
-    grid.innerHTML = acts.map(a => `
-      <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; gap: 8px;">
-        <div>
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <strong style="font-size: 14px;">${a.name || a.label}</strong>
-            <span class="badge">${a.type || 'Activity'}</span>
+    grid.innerHTML = acts.map(a => {
+      const devCount = (a.deviceIds || a.devices || []).length;
+      return `
+        <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; gap: 8px;">
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+              <strong style="font-size: 14px;">${a.name || a.label}</strong>
+              <span class="badge">${a.type || 'Activity'}</span>
+            </div>
+            <div class="muted mini" style="margin-top: 4px;">Order: ${a.order || 1} • ${devCount} device${devCount === 1 ? '' : 's'}</div>
           </div>
-          <div class="muted mini" style="margin-top: 4px;">Order: ${a.order || 1} • ${(a.devices || []).length} devices</div>
+          <div style="margin-top: 6px;">
+            <button type="button" class="btn btn-xs btn-secondary btn-act-edit" data-id="${a.id}" style="width: 100%;">Edit Activity</button>
+          </div>
         </div>
-        <div style="display: flex; gap: 6px; margin-top: 6px;">
-          <button type="button" class="btn btn-xs btn-primary btn-act-run" data-id="${a.id}" style="flex: 1;">Run</button>
-          <button type="button" class="btn btn-xs btn-secondary btn-act-edit" data-id="${a.id}">Edit</button>
-        </div>
-      </div>
-    `).join('');
-
-    grid.querySelectorAll('.btn-act-run').forEach(b => {
-      b.addEventListener('click', async () => {
-        await this.client.startActivity(b.getAttribute('data-id'));
-        await this.refreshActivityState();
-      });
-    });
+      `;
+    }).join('');
 
     grid.querySelectorAll('.btn-act-edit').forEach(b => {
       b.addEventListener('click', () => {
         const id = b.getAttribute('data-id');
-        const act = (this.activitiesData.activities || []).find(x => String(x.id) === String(id));
+        const act = acts.find(x => String(x.id) === String(id));
         this.openActivityEditor(act);
       });
     });
@@ -1007,9 +1123,11 @@ class HarmonyApp {
     timelineEl.innerHTML = steps.map((st, i) => {
       const isDelay = st.type === 'Delay';
       const delayVal = st.delay !== undefined ? st.delay : (st.delayMs || 1000);
+      const dev = (this.inventory.devices || []).find(d => String(d.id) === String(st.deviceId));
+      const devName = dev ? (dev.name || dev.model || `Device ${st.deviceId}`) : `Device ${st.deviceId}`;
       return `
         <div class="queue-row" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;margin-bottom:4px;">
-          <span style="font-size:12px;">${i + 1}. [${st.phase}] ${isDelay ? `Wait ${delayVal} ms` : `Send ${st.command} to Device ${st.deviceId}`}</span>
+          <span style="font-size:12px;">${i + 1}. [${st.phase}] ${isDelay ? `Wait ${delayVal} ms` : `Send ${st.command} to ${devName}`}</span>
           <span class="badge ${isDelay ? 'warn' : 'ok'}">${st.type || 'IRCommand'}</span>
         </div>
       `;
@@ -1360,20 +1478,14 @@ class HarmonyApp {
         </div>
 
         <div class="card">
-          <h3 style="font-size: 15px; margin-bottom: 8px;">Saved Commands (${(dev.commands || []).length})</h3>
-          <div style="display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto;">
-            ${(dev.commands || []).map(c => `
-              <div class="queue-row">
-                <div>
-                  <strong>${c.name}</strong>
-                  <div class="muted mini">Proto ${c.protocol_id} ${c.learned ? '• Learned' : ''}</div>
-                </div>
-                <div style="display: flex; gap: 6px;">
-                  <button type="button" class="btn btn-xs btn-primary btn-mgr-test-cmd" data-cmd="${c.name}">Send</button>
-                  <button type="button" class="btn btn-xs btn-danger btn-mgr-del-cmd" data-cmd="${c.name}">Delete</button>
-                </div>
-              </div>
-            `).join('')}
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h3 style="font-size: 15px; margin: 0;">Saved Commands (<span id="mgrCmdCount">${(dev.commands || []).length}</span>)</h3>
+            <span class="muted mini">Device: ${dev.name || dev.id}</span>
+          </div>
+          <div style="margin-bottom: 8px;">
+            <input type="text" id="mgrCmdSearch" class="form-control" placeholder="Search commands (e.g. Power, Play, Volume)...">
+          </div>
+          <div id="mgrCmdsList" style="display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto;">
           </div>
         </div>
       `;
@@ -1427,19 +1539,59 @@ class HarmonyApp {
         alert('Test MQTT pulse sent.');
       });
 
-      editor.querySelectorAll('.btn-mgr-test-cmd').forEach(b => {
-        b.addEventListener('click', () => this.client.sendCommand(dev.id, b.getAttribute('data-cmd')));
-      });
-
-      editor.querySelectorAll('.btn-mgr-del-cmd').forEach(b => {
-        b.addEventListener('click', async () => {
-          const cmd = b.getAttribute('data-cmd');
-          if (!confirm(`Delete command ${cmd}?`)) return;
-          await this.client.deleteCommand(dev.id, cmd);
-          await this.refreshData();
-          render();
+      const renderCmds = (filter = '') => {
+        const q = filter.trim().toLowerCase();
+        const allCmds = dev.commands || [];
+        // Sort with friendly named commands first (letters), numbers grouped together
+        const sortedCmds = [...allCmds].sort((a, b) => {
+          const aIsNum = /^\d+$/.test(a.name || '');
+          const bIsNum = /^\d+$/.test(b.name || '');
+          if (aIsNum && !bIsNum) return 1;
+          if (!aIsNum && bIsNum) return -1;
+          return (a.name || '').localeCompare(b.name || '');
         });
-      });
+        const filtered = q ? sortedCmds.filter(c => (c.name || '').toLowerCase().includes(q)) : sortedCmds;
+        const listEl = editor.querySelector('#mgrCmdsList');
+        const countEl = editor.querySelector('#mgrCmdCount');
+        if (countEl) countEl.textContent = q ? `${filtered.length} / ${allCmds.length}` : allCmds.length;
+        if (!listEl) return;
+        if (!filtered.length) {
+          listEl.innerHTML = `<div class="muted mini" style="padding: 12px; text-align: center;">${allCmds.length === 0 ? 'No commands saved for this device.' : 'No commands matching search.'}</div>`;
+          return;
+        }
+        listEl.innerHTML = filtered.map(c => `
+          <div class="queue-row" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 4px; background: rgba(255,255,255,0.02);">
+            <div>
+              <strong style="font-size: 13px;">${c.name}</strong>
+              <div class="muted mini">Proto ${c.protocolId || c.protocol_id || 'IR'}${c.learned ? ' • Learned' : ''}${c.raw ? ' • Raw' : ''}</div>
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="btn btn-xs btn-primary btn-mgr-test-cmd" data-cmd="${c.name}">Send</button>
+              <button type="button" class="btn btn-xs btn-danger btn-mgr-del-cmd" data-cmd="${c.name}">Delete</button>
+            </div>
+          </div>
+        `).join('');
+
+        listEl.querySelectorAll('.btn-mgr-test-cmd').forEach(b => {
+          b.addEventListener('click', () => this.client.sendCommand(dev.id, b.getAttribute('data-cmd')));
+        });
+
+        listEl.querySelectorAll('.btn-mgr-del-cmd').forEach(b => {
+          b.addEventListener('click', async () => {
+            const cmd = b.getAttribute('data-cmd');
+            if (!confirm(`Delete command ${cmd}?`)) return;
+            await this.client.deleteCommand(dev.id, cmd);
+            await this.refreshData();
+            render();
+          });
+        });
+      };
+
+      const searchInput = editor.querySelector('#mgrCmdSearch');
+      if (searchInput) {
+        searchInput.addEventListener('input', (e) => renderCmds(e.target.value));
+      }
+      renderCmds();
     };
 
     sel.onchange = render;

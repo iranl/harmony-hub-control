@@ -195,16 +195,10 @@ export class HarmonyClient {
   }
 
   async startActivity(activityId) {
-    if (this.sendWs({ action: 'start_activity', id: String(activityId) })) {
-      return { ok: true, ws: true };
-    }
     return this.postJson('/api/activity-start', { id: String(activityId) });
   }
 
   async stopActivity() {
-    if (this.sendWs({ action: 'stop_activity' })) {
-      return { ok: true, ws: true };
-    }
     return this.postJson('/api/activity-stop', {});
   }
 
